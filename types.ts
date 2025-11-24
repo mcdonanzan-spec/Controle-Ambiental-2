@@ -67,11 +67,11 @@ export interface ChecklistCategory {
   subCategories: ChecklistSubCategory[];
 }
 
-// Novo tipo para o Perfil de Usuário do Supabase
 export interface UserProfile {
   id: string;
   email: string;
   full_name: string;
-  role: 'admin' | 'manager' | 'assistant' | 'viewer'; // admin=Diretoria, manager=Engenheiro, assistant=Assistente
+  // Permitimos string genérica para evitar erros caso o banco tenha "administrador", mas usamos a union para tipagem forte no código
+  role: 'admin' | 'manager' | 'assistant' | 'viewer' | string; 
   assigned_project_ids: string[];
 }

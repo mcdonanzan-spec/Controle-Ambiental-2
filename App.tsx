@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Project, Report, UserProfile } from './types';
-import { getProjects, getReports } from './services/api'; // Usando API real
+import { getProjects, getReports } from './services/api';
 import { supabase } from './services/supabaseClient';
 import Dashboard from './components/Dashboard';
 import ProjectDashboard from './components/ProjectDashboard';
@@ -29,7 +29,6 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Verificar sessão ativa
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) fetchUserProfile(session.user.id);
@@ -50,8 +49,14 @@ const App: React.FC = () => {
 
   const fetchUserProfile = async (userId: string) => {
     const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    
     if (data) {
-        setUserProfile(data as UserProfile);
+        // Normalização: Se o usuário escreveu "administrador" no banco, converte para "admin"
+        let role = data.role;
+        if (role === 'administrador' || role === 'Diretoria') role = 'admin';
+        if (role === 'Engenheiro') role = 'manager';
+        
+        setUserProfile({ ...data, role } as UserProfile);
     }
     refreshData();
     setLoading(false);
@@ -80,6 +85,7 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
       await supabase.auth.signOut();
+      setView('SITES_LIST');
   }
 
   const handleSelectProject = (project: Project) => {
@@ -146,18 +152,18 @@ const App: React.FC = () => {
     else if (view === 'ADMIN_PANEL') title = 'Administração';
     
     return (
-    <header className="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-40">
+    <header className="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-40 h-16">
       <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setView('SITES_LIST')}>
         <LogoIcon className="h-10 w-auto" />
         <div className="hidden sm:block">
             <h1 className="text-xl font-bold text-gray-800">Controle Ambiental</h1>
-            {userProfile && <p className="text-xs text-gray-500">Olá, {userProfile.full_name} ({userProfile.role})</p>}
+            {userProfile && <p className="text-xs text-gray-500">Olá, {userProfile.full_name}</p>}
         </div>
       </div>
-      <div className="hidden md:block text-md font-semibold text-gray-700">
+      <div className="hidden md:block text-md font-semibold text-gray-700 truncate max-w-xs">
         {title}
       </div>
-      <button onClick={handleLogout} className="text-sm text-red-600 font-semibold hover:text-red-800">Sair</button>
+      <button onClick={handleLogout} className="text-sm text-red-600 font-semibold hover:text-red-800 border border-red-200 px-3 py-1 rounded hover:bg-red-50">Sair</button>
     </header>
   )};
 
@@ -178,29 +184,36 @@ const App: React.FC = () => {
         return 'border-red-500';
     }
 
-    if (data.length === 0 && userProfile?.role !== 'admin') {
+    if (data.length === 0) {
         return (
-            <div className="text-center mt-20">
-                <h3 className="text-lg font-medium text-gray-900">Nenhuma obra vinculada</h3>
-                <p className="mt-1 text-sm text-gray-500">Solicite acesso ao administrador.</p>
+            <div className="text-center mt-20 p-8">
+                <div className="bg-white p-8 rounded-lg shadow-md max-w-md mx-auto">
+                    <BuildingOfficeIcon className="h-16 w-16 text-gray-300 mx-auto mb-4"/>
+                    <h3 className="text-lg font-bold text-gray-900">Nenhuma obra vinculada</h3>
+                    <p className="mt-2 text-sm text-gray-500">
+                        {userProfile?.role === 'admin' 
+                            ? 'Você ainda não cadastrou nenhuma obra. Vá ao menu "Admin" para começar.'
+                            : 'Solicite acesso a uma obra com o administrador do sistema.'}
+                    </p>
+                </div>
             </div>
         )
     }
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
         {data.map(({ project, score, pendingActions }) => (
-          <div key={project.id} onClick={() => handleSelectProject(project)} className={`bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow cursor-pointer flex flex-col border-l-4 ${getScoreBorderColor(score)}`}>
+          <div key={project.id} onClick={() => handleSelectProject(project)} className={`bg-white rounded-lg shadow-md hover:shadow-xl transition-all cursor-pointer flex flex-col border-l-4 ${getScoreBorderColor(score)}`}>
             <div className="p-5 flex-grow">
               <h3 className="font-bold text-lg text-gray-800">{project.name}</h3>
               <p className="text-sm text-gray-500">{project.location}</p>
             </div>
-            <div className="bg-gray-50 px-5 py-3 rounded-b-lg flex justify-between items-center text-sm">
+            <div className="bg-gray-50 px-5 py-3 rounded-b-lg flex justify-between items-center text-sm border-t border-gray-100">
                 <div>
                     <span className="font-semibold text-gray-700">Pontuação: </span>
-                    <span className="font-bold">{score !== null ? `${score}%` : 'N/A'}</span>
+                    <span className={`font-bold ${score !== null && score < 70 ? 'text-red-600' : 'text-gray-900'}`}>{score !== null ? `${score}%` : 'N/A'}</span>
                 </div>
-                <div className={`${pendingActions > 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                <div className={`${pendingActions > 0 ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
                     <span className="font-semibold">{pendingActions}</span>
                     <span> pendências</span>
                 </div>
@@ -270,16 +283,20 @@ const App: React.FC = () => {
       { view: 'ADMIN_PANEL', label: 'Admin', icon: WrenchScrewdriverIcon, roles: ['admin'] },
     ];
     
-    const availableNavItems = navItems.filter(item => item.roles.includes(userProfile.role));
+    // Filtra itens baseados na role. Admin vê tudo.
+    const availableNavItems = navItems.filter(item => {
+        if (userProfile.role === 'admin') return true;
+        return item.roles.includes(userProfile.role);
+    });
 
     if (availableNavItems.length <= 1) return null;
 
     return (
-        <nav className="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-2px_5px_rgba(0,0,0,0.1)] flex justify-around items-center z-50 h-16">
+        <nav className="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex justify-around items-center z-50 h-16 border-t border-gray-200">
           {availableNavItems.map(item => {
             const isActive = view === item.view || (item.view === 'SITES_LIST' && ['PROJECT_DASHBOARD', 'REPORT_FORM', 'REPORT_VIEW'].includes(view));
             return (
-              <button key={item.label} onClick={() => setView(item.view)} className={`flex flex-col items-center justify-center w-full h-full transition-colors ${isActive ? 'text-blue-600' : 'text-gray-500 hover:text-blue-500'}`}>
+              <button key={item.label} onClick={() => setView(item.view)} className={`flex flex-col items-center justify-center w-full h-full transition-colors ${isActive ? 'text-blue-600' : 'text-gray-400 hover:text-blue-500'}`}>
                 <item.icon className="h-6 w-6 mb-1"/>
                 <span className="text-xs font-medium">{item.label}</span>
               </button>
@@ -289,14 +306,20 @@ const App: React.FC = () => {
     );
   }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
+  if (loading) return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+        <p className="text-gray-500">Carregando perfil...</p>
+      </div>
+  );
+  
   if (!session || !userProfile) return <AuthScreen />;
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
       <Toast message={toastMessage} onClear={() => setToastMessage('')} />
       <Header />
-      <main className="p-4 md:p-8 pb-24">
+      <main className="p-4 md:p-8 pb-24 max-w-7xl mx-auto">
         {renderContent()}
       </main>
       <BottomNav/>

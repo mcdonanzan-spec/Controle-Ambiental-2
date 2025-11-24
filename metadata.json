@@ -1,0 +1,7 @@
+{
+  "name": "Controle Ambiental versao final 2",
+  "description": "A dynamic and visual application for conducting, managing, and analyzing environmental inspection checklists for civil construction sites. Features photographic evidence, report saving, digital signatures, and interactive dashboards for management.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

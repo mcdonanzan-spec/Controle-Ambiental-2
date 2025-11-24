@@ -1,13 +1,14 @@
 
 import React, { useState, useMemo } from 'react';
-import { Project, Report, InspectionStatus, ChecklistItem, InspectionItemResult, Photo, ActionPlan } from '../types';
+import { Project, Report, InspectionStatus, ChecklistItem, InspectionItemResult, Photo, ActionPlan, UserProfile } from '../types';
 import { CHECKLIST_DEFINITIONS } from '../constants';
-import { getNewReportTemplate, saveReport } from '../services/mockApi';
+import { getNewReportTemplate, saveReport, uploadPhoto } from '../services/api'; // API real
 import { CameraIcon, CheckIcon, PaperAirplaneIcon, XMarkIcon, CubeTransparentIcon, FunnelIcon, WrenchScrewdriverIcon, BeakerIcon, FireIcon, DocumentCheckIcon, MinusIcon } from './icons';
 
 interface ReportFormProps {
   project: Project;
   existingReport: Report | null;
+  userProfile: UserProfile;
   onSave: (status: 'Draft' | 'Completed') => void;
   onCancel: () => void;
   initialCategoryId?: string;
@@ -15,19 +16,30 @@ interface ReportFormProps {
 
 const PhotoUploader: React.FC<{ photos: Photo[], onAddPhoto: (photo: Photo) => void, onRemovePhoto: (id: string) => void, disabled?: boolean }> = ({ photos, onAddPhoto, onRemovePhoto, disabled }) => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
+      setUploading(true);
       const file = event.target.files[0];
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const newPhoto: Photo = {
-          id: `photo-${Date.now()}`,
-          dataUrl: reader.result as string,
-        };
-        onAddPhoto(newPhoto);
-      };
-      reader.readAsDataURL(file);
+      
+      try {
+          const publicUrl = await uploadPhoto(file);
+          if (publicUrl) {
+              const newPhoto: Photo = {
+                id: `photo-${Date.now()}`,
+                dataUrl: publicUrl,
+              };
+              onAddPhoto(newPhoto);
+          } else {
+              alert("Erro ao enviar foto.");
+          }
+      } catch (e) {
+          console.error(e);
+          alert("Erro ao enviar foto.");
+      } finally {
+          setUploading(false);
+      }
     }
   };
 
@@ -41,25 +53,26 @@ const PhotoUploader: React.FC<{ photos: Photo[], onAddPhoto: (photo: Photo) => v
           </button>
         </div>
       ))}
-      <input type="file" accept="image/*" capture="environment" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={disabled} />
+      <input type="file" accept="image/*" capture="environment" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={disabled || uploading} />
       <button
         type="button"
         onClick={() => fileInputRef.current?.click()}
-        disabled={disabled}
+        disabled={disabled || uploading}
         className="h-20 w-20 bg-gray-100 border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center text-gray-500 hover:bg-gray-200 hover:border-gray-400 transition disabled:bg-gray-200 disabled:cursor-not-allowed"
       >
-        <CameraIcon className="h-8 w-8" />
-        <span className="text-xs mt-1">Adicionar</span>
+        {uploading ? <span className="text-xs">Enviando...</span> : <CameraIcon className="h-8 w-8" />}
+        {!uploading && <span className="text-xs mt-1">Adicionar</span>}
       </button>
     </div>
   );
 };
 
-const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, onSave, onCancel, initialCategoryId }) => {
+const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userProfile, onSave, onCancel, initialCategoryId }) => {
   const [reportData, setReportData] = useState<Omit<Report, 'id' | 'score' | 'evaluation' | 'categoryScores'> & {id?: string}>(
     existingReport ? {...existingReport} : getNewReportTemplate(project.id)
   );
   const [activeCategoryId, setActiveCategoryId] = useState<string>(initialCategoryId || CHECKLIST_DEFINITIONS[0].id);
+  const [saving, setSaving] = useState(false);
 
   const isReadOnly = useMemo(() => existingReport?.status === 'Completed', [existingReport]);
   
@@ -92,15 +105,32 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, onSave
       }
   }
 
-  const handleSubmit = (status: 'Draft' | 'Completed') => {
+  const handleSubmit = async (status: 'Draft' | 'Completed') => {
     if (isReadOnly) return;
-    const finalData = { ...reportData, status, date: new Date().toISOString().split('T')[0] };
-    if (status === 'Completed' && (!reportData.signatures.inspector || !reportData.signatures.manager)) {
+    setSaving(true);
+    
+    // Auto-preencher inspetor se estiver vazio e for assistente
+    let currentData = { ...reportData };
+    if (!currentData.inspector) {
+        currentData.inspector = userProfile.full_name;
+    }
+
+    if (status === 'Completed' && (!currentData.signatures.inspector || !currentData.signatures.manager)) {
         alert("Ambas as assinaturas são necessárias para concluir o relatório.");
+        setSaving(false);
         return;
     }
-    saveReport(finalData);
-    onSave(status);
+
+    try {
+        const finalData = { ...currentData, status, date: new Date().toISOString() };
+        await saveReport(finalData);
+        onSave(status);
+    } catch (e) {
+        alert("Erro ao salvar relatório.");
+        console.error(e);
+    } finally {
+        setSaving(false);
+    }
   };
   
   const StatusButton: React.FC<{result: InspectionItemResult; itemId: string; status: InspectionStatus; icon: React.FC<React.SVGProps<SVGSVGElement>>; color: string;}> = ({ result, itemId, status, icon: Icon, color }) => {
@@ -185,6 +215,10 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, onSave
 
   const activeCategory = CHECKLIST_DEFINITIONS.find(c => c.id === activeCategoryId);
   
+  // Controle de permissão de assinatura
+  const canSignInspector = !isReadOnly && (userProfile.role === 'assistant' || userProfile.role === 'admin');
+  const canSignManager = !isReadOnly && (userProfile.role === 'manager' || userProfile.role === 'admin');
+
   return (
     <div className="bg-white pb-32">
         <div className="p-4 sm:p-6 min-h-[calc(100vh-200px)]">
@@ -213,15 +247,39 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, onSave
             {activeCategoryId === 'signatures' && (
                 <div id="signatures" className="animate-fade-in">
                     <h3 className="text-xl font-semibold text-gray-700 mb-4 bg-gray-100 p-3 rounded-lg">Assinaturas</h3>
-                    <p className="text-sm text-gray-500 my-4">As assinaturas são necessárias para marcar o relatório como "Concluído". Para esta demonstração, digite seu nome. Uma aplicação real se integraria a um serviço como gov.br.</p>
+                    <p className="text-sm text-gray-500 my-4">Para concluir, é necessário as assinaturas do Responsável Ambiental e do Engenheiro.</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Responsável Ambiental</label>
-                            <input type="text" value={reportData.signatures.inspector} disabled={isReadOnly} onChange={e => setReportData({...reportData, signatures: {...reportData.signatures, inspector: e.target.value}})} placeholder="Digite o nome para assinar" className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm disabled:bg-gray-100"/>
+                            <label className="block text-sm font-medium text-gray-700">Responsável Ambiental (Assistente)</label>
+                            {reportData.signatures.inspector ? (
+                                <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded text-green-800 font-bold">
+                                    Assinado por: {reportData.signatures.inspector}
+                                </div>
+                            ) : (
+                                <button 
+                                    disabled={!canSignInspector}
+                                    onClick={() => setReportData({...reportData, signatures: {...reportData.signatures, inspector: userProfile.full_name}})}
+                                    className="mt-2 w-full py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {canSignInspector ? 'Assinar Digitalmente' : 'Aguardando Responsável'}
+                                </button>
+                            )}
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700">Responsável Engenharia</label>
-                            <input type="text" value={reportData.signatures.manager} disabled={isReadOnly} onChange={e => setReportData({...reportData, signatures: {...reportData.signatures, manager: e.target.value}})} placeholder="Digite o nome para assinar" className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm disabled:bg-gray-100"/>
+                            <label className="block text-sm font-medium text-gray-700">Responsável Engenharia (Engenheiro)</label>
+                            {reportData.signatures.manager ? (
+                                <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded text-green-800 font-bold">
+                                    Assinado por: {reportData.signatures.manager}
+                                </div>
+                            ) : (
+                                <button 
+                                    disabled={!canSignManager}
+                                    onClick={() => setReportData({...reportData, signatures: {...reportData.signatures, manager: userProfile.full_name}})}
+                                    className="mt-2 w-full py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {canSignManager ? 'Assinar Digitalmente' : 'Aguardando Responsável'}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -246,13 +304,13 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, onSave
       
       <div className="fixed bottom-0 left-0 right-0 bg-gray-100 p-3 flex flex-col sm:flex-row justify-end items-center gap-3 border-t-2 z-[51] h-auto sm:h-16">
         <button onClick={onCancel} className="w-full sm:w-auto px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 font-semibold">Cancelar</button>
-        <button onClick={() => handleSubmit('Draft')} disabled={isReadOnly} className="w-full sm:w-auto flex justify-center items-center px-4 py-2 text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 font-semibold disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed">
+        <button onClick={() => handleSubmit('Draft')} disabled={isReadOnly || saving} className="w-full sm:w-auto flex justify-center items-center px-4 py-2 text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 font-semibold disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed">
             <PaperAirplaneIcon className="h-5 w-5 mr-2"/>
-            Salvar Rascunho
+            {saving ? 'Salvando...' : 'Salvar Rascunho'}
         </button>
-        <button onClick={() => handleSubmit('Completed')} disabled={isReadOnly} className="w-full sm:w-auto flex justify-center items-center px-4 py-2 text-white bg-green-600 rounded-md hover:bg-green-700 font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed">
+        <button onClick={() => handleSubmit('Completed')} disabled={isReadOnly || saving} className="w-full sm:w-auto flex justify-center items-center px-4 py-2 text-white bg-green-600 rounded-md hover:bg-green-700 font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed">
             <CheckIcon className="h-5 w-5 mr-2"/>
-            Concluir e Enviar
+            {saving ? 'Enviando...' : 'Concluir e Enviar'}
         </button>
       </div>
     </div>

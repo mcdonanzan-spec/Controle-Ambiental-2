@@ -1,5 +1,10 @@
 
-import { User } from '../types';
+interface User {
+  id: string;
+  name: string;
+  role: string;
+  projectIds: string[];
+}
 
 export const MOCK_USERS: User[] = [
   {

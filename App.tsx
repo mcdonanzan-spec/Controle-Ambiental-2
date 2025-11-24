@@ -1,21 +1,24 @@
 
 import React, { useState, useEffect } from 'react';
-import { Project, Report, User } from './types';
-import { getProjects, getReports } from './services/mockApi';
-import { MOCK_USERS } from './services/mockUsers';
+import { Project, Report, UserProfile } from './types';
+import { getProjects, getReports } from './services/api'; // Usando API real
+import { supabase } from './services/supabaseClient';
 import Dashboard from './components/Dashboard';
 import ProjectDashboard from './components/ProjectDashboard';
 import ReportForm from './components/ReportForm';
 import ReportView from './components/ReportView';
 import PendingActions from './components/PendingActions';
+import AuthScreen from './components/AuthScreen';
+import AdminPanel from './components/AdminPanel';
 import Toast from './components/Toast';
-import { LogoIcon, BuildingOfficeIcon, ChartPieIcon, UserCircleIcon } from './components/icons';
+import { LogoIcon, BuildingOfficeIcon, ChartPieIcon, ArrowLeftIcon, WrenchScrewdriverIcon } from './components/icons';
 
-type View = 'SITES_LIST' | 'PROJECT_DASHBOARD' | 'REPORT_FORM' | 'REPORT_VIEW' | 'MANAGEMENT_DASHBOARD' | 'PENDING_ACTIONS';
+type View = 'SITES_LIST' | 'PROJECT_DASHBOARD' | 'REPORT_FORM' | 'REPORT_VIEW' | 'MANAGEMENT_DASHBOARD' | 'PENDING_ACTIONS' | 'ADMIN_PANEL';
 
 const App: React.FC = () => {
+  const [session, setSession] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [view, setView] = useState<View>('SITES_LIST');
-  const [currentUser, setCurrentUser] = useState<User>(MOCK_USERS[0]); // Default to Directory
   const [projects, setProjects] = useState<Project[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -23,22 +26,61 @@ const App: React.FC = () => {
   const [editingReport, setEditingReport] = useState<Report | null>(null);
   const [initialCategoryId, setInitialCategoryId] = useState<string | undefined>(undefined);
   const [toastMessage, setToastMessage] = useState<string>('');
-
-  const refreshData = () => {
-     setProjects(getProjects());
-     setReports(getReports());
-  };
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Verificar sessão ativa
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) fetchUserProfile(session.user.id);
+      else setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) fetchUserProfile(session.user.id);
+      else {
+        setUserProfile(null);
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const fetchUserProfile = async (userId: string) => {
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    if (data) {
+        setUserProfile(data as UserProfile);
+    }
     refreshData();
-  }, [currentUser]);
+    setLoading(false);
+  }
+
+  const refreshData = async () => {
+     setProjects(await getProjects());
+     setReports(await getReports());
+  };
   
-  const filteredProjects = projects.filter(p => currentUser.role === 'Diretoria' || currentUser.projectIds.includes(p.id));
+  // Controle de Permissões
+  const filteredProjects = projects.filter(p => {
+      if (!userProfile) return false;
+      if (userProfile.role === 'admin') return true; // Diretoria vê tudo
+      return userProfile.assigned_project_ids?.includes(p.id);
+  });
+
   const filteredReports = reports.filter(r => {
+      if (!userProfile) return false;
       const projectForReport = projects.find(p => p.id === r.projectId);
       if (!projectForReport) return false;
-      return currentUser.role === 'Diretoria' || currentUser.projectIds.includes(projectForReport.id);
+      
+      if (userProfile.role === 'admin') return true;
+      return userProfile.assigned_project_ids?.includes(projectForReport.id);
   });
+
+  const handleLogout = async () => {
+      await supabase.auth.signOut();
+  }
 
   const handleSelectProject = (project: Project) => {
     setSelectedProject(project);
@@ -95,32 +137,27 @@ const App: React.FC = () => {
     setView('SITES_LIST');
   };
   
-  const UserSwitcher: React.FC = () => (
-      <div className="flex items-center space-x-2">
-          <UserCircleIcon className="h-6 w-6 text-gray-600"/>
-          <select value={currentUser.id} onChange={(e) => setCurrentUser(MOCK_USERS.find(u => u.id === e.target.value)!)} className="font-semibold text-gray-700 bg-transparent border-none focus:ring-0">
-              {MOCK_USERS.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
-          </select>
-      </div>
-  )
-  
   const Header: React.FC = () => {
     let title = 'Painel de Obras';
     if (view === 'MANAGEMENT_DASHBOARD') title = 'Dashboard Diretoria';
     else if (view === 'PENDING_ACTIONS') title = 'Central de Pendências';
     else if (view === 'PROJECT_DASHBOARD' && selectedProject) title = selectedProject.name;
     else if (view === 'REPORT_FORM' || view === 'REPORT_VIEW') title = 'Relatório de Inspeção';
+    else if (view === 'ADMIN_PANEL') title = 'Administração';
     
     return (
     <header className="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-40">
       <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setView('SITES_LIST')}>
         <LogoIcon className="h-10 w-auto" />
-        <h1 className="text-xl md:text-2xl font-bold text-gray-800 hidden sm:block">Controle Ambiental</h1>
+        <div className="hidden sm:block">
+            <h1 className="text-xl font-bold text-gray-800">Controle Ambiental</h1>
+            {userProfile && <p className="text-xs text-gray-500">Olá, {userProfile.full_name} ({userProfile.role})</p>}
+        </div>
       </div>
       <div className="hidden md:block text-md font-semibold text-gray-700">
         {title}
       </div>
-      <UserSwitcher/>
+      <button onClick={handleLogout} className="text-sm text-red-600 font-semibold hover:text-red-800">Sair</button>
     </header>
   )};
 
@@ -139,6 +176,15 @@ const App: React.FC = () => {
         if (score >= 70) return 'border-blue-500';
         if (score >= 50) return 'border-yellow-500';
         return 'border-red-500';
+    }
+
+    if (data.length === 0 && userProfile?.role !== 'admin') {
+        return (
+            <div className="text-center mt-20">
+                <h3 className="text-lg font-medium text-gray-900">Nenhuma obra vinculada</h3>
+                <p className="mt-1 text-sm text-gray-500">Solicite acesso ao administrador.</p>
+            </div>
+        )
     }
 
     return (
@@ -185,6 +231,7 @@ const App: React.FC = () => {
           <ReportForm
             project={selectedProject}
             existingReport={editingReport}
+            userProfile={userProfile!}
             onSave={handleSaveReport}
             onCancel={() => selectedProject ? setView('PROJECT_DASHBOARD') : navigateToSitesList()}
             initialCategoryId={initialCategoryId}
@@ -206,6 +253,8 @@ const App: React.FC = () => {
         return <Dashboard projects={projects} reports={reports} onSelectProject={handleSelectProject} onNavigateToSites={navigateToSitesList} onNavigateToPendingActions={handleNavigateToPendingActions} />;
       case 'PENDING_ACTIONS':
         return <PendingActions projects={projects} reports={reports} onNavigateToReportItem={handleEditReportCategory} onBack={() => setView('MANAGEMENT_DASHBOARD')}/>;
+      case 'ADMIN_PANEL':
+        return <AdminPanel projects={projects} onProjectCreated={refreshData} />;
       case 'SITES_LIST':
       default:
         return <SitesList />;
@@ -213,12 +262,17 @@ const App: React.FC = () => {
   };
   
   const BottomNav: React.FC = () => {
-    const navItems: { view: View; label: string; icon: React.FC<React.SVGProps<SVGSVGElement>>; roles: User['role'][] }[] = [
-      { view: 'SITES_LIST', label: 'Obras', icon: BuildingOfficeIcon, roles: ['Diretoria', 'Engenheiro'] },
-      { view: 'MANAGEMENT_DASHBOARD', label: 'Diretoria', icon: ChartPieIcon, roles: ['Diretoria'] },
+    if (!userProfile) return null;
+
+    const navItems: { view: View; label: string; icon: React.FC<React.SVGProps<SVGSVGElement>>; roles: UserProfile['role'][] }[] = [
+      { view: 'SITES_LIST', label: 'Obras', icon: BuildingOfficeIcon, roles: ['admin', 'manager', 'assistant', 'viewer'] },
+      { view: 'MANAGEMENT_DASHBOARD', label: 'KPIs', icon: ChartPieIcon, roles: ['admin'] },
+      { view: 'ADMIN_PANEL', label: 'Admin', icon: WrenchScrewdriverIcon, roles: ['admin'] },
     ];
     
-    const availableNavItems = navItems.filter(item => item.roles.includes(currentUser.role));
+    const availableNavItems = navItems.filter(item => item.roles.includes(userProfile.role));
+
+    if (availableNavItems.length <= 1) return null;
 
     return (
         <nav className="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-2px_5px_rgba(0,0,0,0.1)] flex justify-around items-center z-50 h-16">
@@ -234,6 +288,9 @@ const App: React.FC = () => {
         </nav>
     );
   }
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
+  if (!session || !userProfile) return <AuthScreen />;
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">

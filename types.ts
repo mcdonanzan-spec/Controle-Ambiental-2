@@ -7,7 +7,7 @@ export enum InspectionStatus {
 
 export interface Photo {
   id: string;
-  dataUrl: string;
+  dataUrl: string; // Na versão Supabase, isso será a URL pública da imagem
 }
 
 export interface ActionPlan {
@@ -37,8 +37,8 @@ export interface Report {
   status: 'Draft' | 'Completed';
   results: InspectionItemResult[];
   signatures: {
-    inspector: string;
-    manager: string;
+    inspector: string; // Nome ou ID do usuário
+    manager: string;   // Nome ou ID do usuário
   };
   score: number;
   evaluation: string;
@@ -67,9 +67,11 @@ export interface ChecklistCategory {
   subCategories: ChecklistSubCategory[];
 }
 
-export interface User {
+// Novo tipo para o Perfil de Usuário do Supabase
+export interface UserProfile {
   id: string;
-  name: string;
-  role: 'Diretoria' | 'Engenheiro';
-  projectIds: string[];
+  email: string;
+  full_name: string;
+  role: 'admin' | 'manager' | 'assistant' | 'viewer'; // admin=Diretoria, manager=Engenheiro, assistant=Assistente
+  assigned_project_ids: string[];
 }

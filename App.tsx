@@ -51,10 +51,12 @@ const App: React.FC = () => {
     const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
     
     if (data) {
-        // Normalização: Se o usuário escreveu "administrador" no banco, converte para "admin"
         let role = data.role;
-        if (role === 'administrador' || role === 'Diretoria') role = 'admin';
+        // Normalização de nomes antigos ou manuais
+        if (role === 'administrador') role = 'admin';
+        if (role === 'Diretoria') role = 'executive';
         if (role === 'Engenheiro') role = 'manager';
+        if (role === 'Assistente') role = 'assistant';
         
         setUserProfile({ ...data, role } as UserProfile);
     }
@@ -68,9 +70,11 @@ const App: React.FC = () => {
   };
   
   // Controle de Permissões
+  // Admin e Executive (Diretoria) veem tudo.
+  // Manager (Engenheiro) e Assistant (Assistente) veem apenas obras vinculadas.
   const filteredProjects = projects.filter(p => {
       if (!userProfile) return false;
-      if (userProfile.role === 'admin') return true; // Diretoria vê tudo
+      if (userProfile.role === 'admin' || userProfile.role === 'executive') return true; 
       return userProfile.assigned_project_ids?.includes(p.id);
   });
 
@@ -79,7 +83,7 @@ const App: React.FC = () => {
       const projectForReport = projects.find(p => p.id === r.projectId);
       if (!projectForReport) return false;
       
-      if (userProfile.role === 'admin') return true;
+      if (userProfile.role === 'admin' || userProfile.role === 'executive') return true;
       return userProfile.assigned_project_ids?.includes(projectForReport.id);
   });
 
@@ -103,6 +107,11 @@ const App: React.FC = () => {
   };
 
   const handleCreateNewReport = (project: Project) => {
+    // Diretoria não cria relatório
+    if (userProfile?.role === 'executive') {
+        alert("Perfil Diretoria é apenas para visualização.");
+        return;
+    }
     setEditingReport(null);
     setSelectedProject(project);
     setInitialCategoryId(undefined);
@@ -110,6 +119,11 @@ const App: React.FC = () => {
   };
   
   const handleEditReport = (report: Report) => {
+    // Diretoria não edita relatório
+    if (userProfile?.role === 'executive') {
+        alert("Perfil Diretoria é apenas para visualização.");
+        return;
+    }
     setEditingReport(report);
     setSelectedProject(projects.find(p => p.id === report.projectId) || null);
     setInitialCategoryId(undefined);
@@ -120,6 +134,10 @@ const App: React.FC = () => {
     setEditingReport(report);
     setSelectedProject(projects.find(p => p.id === report.projectId) || null);
     setInitialCategoryId(categoryId);
+    // Se for executive, forçamos o modo de visualização ou usamos o Form em modo read-only (que o componente já suporta se status=Completed, mas podemos forçar via prop se necessário)
+    // No código atual do ReportForm, ele verifica status=Completed para readonly. 
+    // Para executive, a edição será bloqueada dentro do ReportForm ou aqui redirecionamos para REPORT_VIEW se preferir.
+    // Vamos deixar ir para o Form, mas o Form precisa saber se é ReadOnly por role.
     setView('REPORT_FORM');
   }
 
@@ -145,7 +163,7 @@ const App: React.FC = () => {
   
   const Header: React.FC = () => {
     let title = 'Painel de Obras';
-    if (view === 'MANAGEMENT_DASHBOARD') title = 'Dashboard Diretoria';
+    if (view === 'MANAGEMENT_DASHBOARD') title = 'Dashboard Gerencial';
     else if (view === 'PENDING_ACTIONS') title = 'Central de Pendências';
     else if (view === 'PROJECT_DASHBOARD' && selectedProject) title = selectedProject.name;
     else if (view === 'REPORT_FORM' || view === 'REPORT_VIEW') title = 'Relatório de Inspeção';
@@ -240,6 +258,13 @@ const App: React.FC = () => {
         );
       case 'REPORT_FORM':
         if (!selectedProject) return null;
+        // Se for executive, usamos o ReportView ou passamos o form em readonly mode.
+        // Como o ReportForm tem lógica de edição, se o usuário for executive, vamos tratar como ReadOnly forçado.
+        // No entanto, para simplificar, se for Executive tentando editar, mandamos para o View.
+        if (userProfile?.role === 'executive' && editingReport) {
+            return <ReportView report={editingReport} project={selectedProject} onBack={() => setView('PROJECT_DASHBOARD')} onEdit={() => {}} />
+        }
+        
         return (
           <ReportForm
             project={selectedProject}
@@ -267,6 +292,7 @@ const App: React.FC = () => {
       case 'PENDING_ACTIONS':
         return <PendingActions projects={projects} reports={reports} onNavigateToReportItem={handleEditReportCategory} onBack={() => setView('MANAGEMENT_DASHBOARD')}/>;
       case 'ADMIN_PANEL':
+        if (userProfile?.role !== 'admin') return <SitesList />;
         return <AdminPanel projects={projects} onProjectCreated={refreshData} />;
       case 'SITES_LIST':
       default:
@@ -277,15 +303,14 @@ const App: React.FC = () => {
   const BottomNav: React.FC = () => {
     if (!userProfile) return null;
 
-    const navItems: { view: View; label: string; icon: React.FC<React.SVGProps<SVGSVGElement>>; roles: UserProfile['role'][] }[] = [
-      { view: 'SITES_LIST', label: 'Obras', icon: BuildingOfficeIcon, roles: ['admin', 'manager', 'assistant', 'viewer'] },
-      { view: 'MANAGEMENT_DASHBOARD', label: 'KPIs', icon: ChartPieIcon, roles: ['admin'] },
+    const navItems: { view: View; label: string; icon: React.FC<React.SVGProps<SVGSVGElement>>; roles: string[] }[] = [
+      { view: 'SITES_LIST', label: 'Obras', icon: BuildingOfficeIcon, roles: ['admin', 'executive', 'manager', 'assistant'] },
+      { view: 'MANAGEMENT_DASHBOARD', label: 'KPIs', icon: ChartPieIcon, roles: ['admin', 'executive'] }, // Executive vê KPIs
       { view: 'ADMIN_PANEL', label: 'Admin', icon: WrenchScrewdriverIcon, roles: ['admin'] },
     ];
     
-    // Filtra itens baseados na role. Admin vê tudo.
+    // Filtra itens baseados na role.
     const availableNavItems = navItems.filter(item => {
-        if (userProfile.role === 'admin') return true;
         return item.roles.includes(userProfile.role);
     });
 

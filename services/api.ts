@@ -1,5 +1,6 @@
 
 import { supabase } from './supabaseClient';
+import { createClient } from '@supabase/supabase-js';
 import { Project, Report, UserProfile, InspectionItemResult, InspectionStatus } from '../types';
 import { CHECKLIST_DEFINITIONS } from '../constants';
 
@@ -25,7 +26,6 @@ export const getProjects = async (): Promise<Project[]> => {
 };
 
 export const createProject = async (name: string, location: string): Promise<Project | null> => {
-  // Geramos o ID no front para evitar erros caso o banco não tenha default configurado
   const id = generateUUID();
   
   const { data, error } = await supabase
@@ -36,7 +36,7 @@ export const createProject = async (name: string, location: string): Promise<Pro
     
   if (error) {
     console.error('Erro ao criar obra:', error);
-    throw error; // Lança o erro para ser capturado no componente e exibido ao usuário
+    throw error;
   }
   return data;
 }
@@ -184,4 +184,61 @@ export const getAllProfiles = async (): Promise<UserProfile[]> => {
 export const updateUserProfile = async (userId: string, updates: Partial<UserProfile>): Promise<void> => {
     const { error } = await supabase.from('profiles').update(updates).eq('id', userId);
     if (error) throw error;
+}
+
+// Esta função cria um usuário usando um cliente temporário para não deslogar o admin atual
+export const createUserAccount = async (userData: {email: string, password: string, name: string, role: string, projectIds: string[]}) => {
+    // Recupera as configs do ambiente para criar um segundo cliente
+    const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+    const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+    
+    // Cliente temporário sem persistencia de sessão
+    const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+            persistSession: false, 
+            autoRefreshToken: false,
+            detectSessionInUrl: false
+        }
+    });
+
+    // 1. Criar o usuário na Auth do Supabase
+    const { data, error } = await tempClient.auth.signUp({
+        email: userData.email,
+        password: userData.password,
+        options: {
+            data: {
+                full_name: userData.name
+            }
+        }
+    });
+
+    if (error) throw error;
+    if (!data.user) throw new Error("Usuário criado mas ID não retornado.");
+
+    // 2. Atualizar o perfil criado automaticamente (via trigger) ou criar se não existir, usando o cliente ADMIN (logado)
+    // Pequeno delay para garantir que o trigger do Supabase rodou (se houver)
+    await new Promise(r => setTimeout(r, 1000));
+
+    // Atualizamos os dados usando o cliente principal que tem permissão de admin
+    const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+            role: userData.role,
+            assigned_project_ids: userData.projectIds
+        })
+        .eq('id', data.user.id);
+
+    // Se o trigger falhou e não criou o perfil, tentamos inserir
+    if (profileError) {
+        // Tenta insert manual caso update falhe (fallback)
+         await supabase.from('profiles').upsert({
+            id: data.user.id,
+            email: userData.email,
+            full_name: userData.name,
+            role: userData.role,
+            assigned_project_ids: userData.projectIds
+        });
+    }
+
+    return data.user;
 }

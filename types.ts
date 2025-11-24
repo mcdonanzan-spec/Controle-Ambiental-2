@@ -71,7 +71,10 @@ export interface UserProfile {
   id: string;
   email: string;
   full_name: string;
-  // Permitimos string genérica para evitar erros caso o banco tenha "administrador", mas usamos a union para tipagem forte no código
-  role: 'admin' | 'manager' | 'assistant' | 'viewer' | string; 
+  // admin: Mestre (Cria usuários, obras)
+  // executive: Diretoria (Vê tudo, não edita)
+  // manager: Engenheiro (Edita/Assina obras vinculadas)
+  // assistant: Assistente (Edita/Assina obras vinculadas)
+  role: 'admin' | 'executive' | 'manager' | 'assistant' | string; 
   assigned_project_ids: string[];
 }

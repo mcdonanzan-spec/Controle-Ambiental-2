@@ -3,6 +3,17 @@ import { supabase } from './supabaseClient';
 import { Project, Report, UserProfile, InspectionItemResult, InspectionStatus } from '../types';
 import { CHECKLIST_DEFINITIONS } from '../constants';
 
+// Função auxiliar para gerar UUID compatível
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 // --- Projects ---
 export const getProjects = async (): Promise<Project[]> => {
   const { data, error } = await supabase.from('projects').select('*');
@@ -14,15 +25,18 @@ export const getProjects = async (): Promise<Project[]> => {
 };
 
 export const createProject = async (name: string, location: string): Promise<Project | null> => {
+  // Geramos o ID no front para evitar erros caso o banco não tenha default configurado
+  const id = generateUUID();
+  
   const { data, error } = await supabase
     .from('projects')
-    .insert([{ name, location }]) // ID é gerado automaticamente se a tabela estiver configurada corretamente, ou add um UUID aqui
+    .insert([{ id, name, location }]) 
     .select()
     .single();
     
   if (error) {
     console.error('Erro ao criar obra:', error);
-    return null;
+    throw error; // Lança o erro para ser capturado no componente e exibido ao usuário
   }
   return data;
 }
@@ -35,11 +49,10 @@ export const getReports = async (): Promise<Report[]> => {
     return [];
   }
   
-  // Mapear do formato do banco (snake_case e jsonb) para o formato da aplicação
   return (data || []).map((row: any) => ({
     id: row.id,
     projectId: row.project_id,
-    date: row.created_at, // ou um campo 'date' específico se tiver
+    date: row.created_at,
     inspector: row.content.inspector,
     status: row.content.status,
     results: row.content.results,
@@ -50,7 +63,6 @@ export const getReports = async (): Promise<Report[]> => {
   }));
 };
 
-// Função auxiliar de cálculo (mesma lógica do mock)
 const calculateScores = (results: InspectionItemResult[]) => {
     const categoryScores: { [categoryId: string]: number } = {};
     let totalScore = 0;
@@ -87,15 +99,11 @@ export const saveReport = async (reportData: Omit<Report, 'id' | 'score' | 'eval
   const { score, evaluation, categoryScores } = calculateScores(reportData.results);
   const fullContent = { ...reportData, score, evaluation, categoryScores };
   
-  // Preparar objeto para salvar no banco
-  // Se já tem ID, atualizamos. Se não, criamos.
-  
   if (reportData.id) {
     const { data, error } = await supabase
       .from('reports')
       .update({
         content: fullContent,
-        // project_id: reportData.projectId // Geralmente não muda
       })
       .eq('id', reportData.id)
       .select()

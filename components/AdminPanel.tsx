@@ -32,16 +32,25 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ projects, onProjectCreated }) =
             return;
         }
         setLoading(true);
-        const res = await createProject(newProjectName, newProjectLoc);
-        if (res) {
-            setNewProjectName('');
-            setNewProjectLoc('');
-            alert('Obra criada com sucesso!');
-            onProjectCreated();
-        } else {
-            alert('Erro ao criar obra. Tente novamente.');
+        try {
+            const res = await createProject(newProjectName, newProjectLoc);
+            if (res) {
+                setNewProjectName('');
+                setNewProjectLoc('');
+                alert('Obra criada com sucesso!');
+                onProjectCreated();
+            }
+        } catch (error: any) {
+            // Mostra o erro exato do Supabase
+            console.error("Erro detalhado:", error);
+            alert(`Erro ao criar obra: ${error.message || error.details || 'Verifique o console para mais detalhes.'}`);
+            
+            if (error.code === '42501') {
+                alert("DICA: Erro de Permissão (RLS). Vá no Supabase > Authentication > Policies e certifique-se que a tabela 'projects' permite INSERT para usuários autenticados.");
+            }
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const handleUpdateRole = async (userId: string, newRole: UserProfile['role']) => {

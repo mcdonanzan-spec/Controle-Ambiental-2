@@ -241,36 +241,47 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
   }
 
   return (
-    <div className="space-y-6 animate-fade-in pb-10">
+    <div className="space-y-6 animate-fade-in pb-10 print:bg-white">
       
       {/* HEADER + SELETOR DE PERÍODO */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-gray-200 pb-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-gray-200 pb-4 no-print">
           <div>
             <h2 className="text-2xl font-bold text-gray-800">Painel Executivo</h2>
             <p className="text-sm text-gray-500">Visão consolidada do desempenho ambiental</p>
           </div>
           
-          <div className="flex flex-col items-end gap-2 w-full md:w-auto">
-             <label className="text-xs font-bold text-gray-500 uppercase flex items-center">
-                <FunnelIcon className="h-3 w-3 mr-1"/> Período de Análise
-             </label>
-             <select 
-                value={selectedPeriod} 
-                onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="bg-white border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-64 p-2.5 shadow-sm font-medium"
-             >
-                <option value="latest">📌 VISÃO ATUAL (Última Inspeção)</option>
-                <option disabled>──────────</option>
-                {availableMonths.map(month => (
-                    <option key={month} value={month}>{formatMonth(month)}</option>
-                ))}
-             </select>
+          <div className="flex flex-col md:flex-row items-end gap-4 w-full md:w-auto">
+             <div className="flex flex-col items-end gap-2 w-full">
+                <label className="text-xs font-bold text-gray-500 uppercase flex items-center">
+                    <FunnelIcon className="h-3 w-3 mr-1"/> Período de Análise
+                </label>
+                <select 
+                    value={selectedPeriod} 
+                    onChange={(e) => setSelectedPeriod(e.target.value)}
+                    className="bg-white border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-64 p-2.5 shadow-sm font-medium"
+                >
+                    <option value="latest">📌 VISÃO ATUAL (Última Inspeção)</option>
+                    <option disabled>──────────</option>
+                    {availableMonths.map(month => (
+                        <option key={month} value={month}>{formatMonth(month)}</option>
+                    ))}
+                </select>
+             </div>
+             <button onClick={() => window.print()} className="bg-gray-800 hover:bg-gray-900 text-white p-2.5 rounded-lg shadow transition-colors" title="Exportar PDF">
+                 <DocumentChartBarIcon className="h-5 w-5"/>
+             </button>
           </div>
+      </div>
+      
+      {/* Header Apenas para Impressão */}
+      <div className="hidden print:block mb-8 border-b pb-4">
+          <h1 className="text-3xl font-bold text-gray-900">Relatório Gerencial de Desempenho</h1>
+          <p className="text-gray-500">Gerado em {new Date().toLocaleDateString()}</p>
       </div>
 
       {/* BANNER DE MODO HISTÓRICO */}
       {selectedPeriod !== 'latest' && (
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r shadow-sm flex items-start animate-fade-in">
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r shadow-sm flex items-start animate-fade-in no-print">
               <ClockIcon className="h-6 w-6 text-yellow-600 mr-3 flex-shrink-0"/>
               <div>
                   <h3 className="text-sm font-bold text-yellow-800 uppercase">Modo de Análise Histórica</h3>
@@ -288,10 +299,10 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
       )}
       
       {/* KPI CARDS - Agora reagem ao período */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 page-break-inside-avoid">
         <div onClick={selectedPeriod === 'latest' ? onNavigateToSites : undefined} className={`bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between transition-all group ${selectedPeriod === 'latest' ? 'cursor-pointer hover:shadow-md' : ''}`}>
             <div className="flex items-center space-x-4">
-                <div className="p-3 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
+                <div className="p-3 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors print:bg-blue-50">
                     <BuildingOfficeIcon className="h-8 w-8 text-blue-600"/>
                 </div>
                 <div>
@@ -303,7 +314,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
 
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
             <div className="flex items-center space-x-4">
-                <div className="p-3 bg-green-50 rounded-lg transition-colors">
+                <div className="p-3 bg-green-50 rounded-lg transition-colors print:bg-green-50">
                     <DocumentChartBarIcon className="h-8 w-8 text-green-600"/>
                 </div>
                 <div>
@@ -326,17 +337,17 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                 </div>
             </div>
              {selectedPeriod === 'latest' && totalPendingActions > 0 && (
-                <div className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded font-semibold group-hover:bg-red-100">Ver Detalhes</div>
+                <div className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded font-semibold group-hover:bg-red-100 no-print">Ver Detalhes</div>
             )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 page-break-inside-avoid">
         {/* BAR CHART */}
         <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-md border border-gray-100">
           <div className="mb-6 flex justify-between items-center">
             <h2 className="text-lg font-bold text-gray-700">Ranking de Desempenho {selectedPeriod !== 'latest' && <span className="text-yellow-600">(Histórico)</span>}</h2>
-            {selectedPeriod === 'latest' && <span className="text-xs text-gray-400 font-medium bg-gray-50 px-2 py-1 rounded border">Clique na barra para detalhar</span>}
+            {selectedPeriod === 'latest' && <span className="text-xs text-gray-400 font-medium bg-gray-50 px-2 py-1 rounded border no-print">Clique na barra para detalhar</span>}
           </div>
           
           {data.length > 0 ? (
@@ -421,7 +432,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
       </div>
       
       {/* TREND CHART - Sempre mostra o histórico completo para contexto */}
-      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-100">
+      <div className="bg-white p-6 rounded-lg shadow-md border border-gray-100 page-break-inside-avoid">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-2">
             <div>
                 <h2 className="text-lg font-bold text-gray-700">Evolução Histórica (Tendência)</h2>

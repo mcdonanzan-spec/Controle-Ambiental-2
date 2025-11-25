@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -17,6 +18,20 @@
   }
 }
 </script>
+<style>
+  @media print {
+    @page { margin: 1cm; size: A4; }
+    body { 
+      -webkit-print-color-adjust: exact !important; 
+      print-color-adjust: exact !important; 
+      background-color: white !important;
+    }
+    .no-print { display: none !important; }
+    .page-break-inside-avoid { break-inside: avoid; }
+    /* Força gráficos e cores de fundo a aparecerem */
+    * { print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important; }
+  }
+</style>
 </head>
   <body class="bg-gray-100">
     <div id="root"></div>

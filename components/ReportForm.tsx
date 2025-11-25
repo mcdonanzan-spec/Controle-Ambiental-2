@@ -2,8 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import { Project, Report, InspectionStatus, ChecklistItem, InspectionItemResult, Photo, ActionPlan, UserProfile } from '../types';
 import { CHECKLIST_DEFINITIONS } from '../constants';
-import { getNewReportTemplate, saveReport, uploadPhoto } from '../services/api'; 
-import { CameraIcon, CheckIcon, PaperAirplaneIcon, XMarkIcon, CubeTransparentIcon, FunnelIcon, WrenchScrewdriverIcon, BeakerIcon, FireIcon, DocumentCheckIcon, MinusIcon, ShieldCheckIcon } from './icons';
+import { saveReport, uploadPhoto } from '../services/api'; 
+import { CameraIcon, CheckIcon, PaperAirplaneIcon, XMarkIcon, CubeTransparentIcon, FunnelIcon, WrenchScrewdriverIcon, BeakerIcon, FireIcon, DocumentCheckIcon, MinusIcon, ShieldCheckIcon, ExclamationTriangleIcon } from './icons';
 
 interface ReportFormProps {
   project: Project;
@@ -109,15 +109,35 @@ const GovBrBadge: React.FC<{ name: string, date: string }> = ({ name, date }) =>
 
 
 const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userProfile, onSave, onCancel, initialCategoryId }) => {
+  // Se existingReport vier vazio (caso raro com a nova lógica async), inicializa um dummy, mas o App.tsx já garante que ele vem preenchido com draft
   const [reportData, setReportData] = useState<Omit<Report, 'id' | 'score' | 'evaluation' | 'categoryScores'> & {id?: string}>(
-    existingReport ? {...existingReport} : getNewReportTemplate(project.id)
+    existingReport ? {...existingReport} : {
+        projectId: project.id,
+        date: new Date().toISOString(),
+        inspector: userProfile.full_name,
+        status: 'Draft',
+        results: [],
+        signatures: { inspector: '', manager: '' }
+    }
   );
+  
   const [activeCategoryId, setActiveCategoryId] = useState<string>(initialCategoryId || CHECKLIST_DEFINITIONS[0].id);
   const [saving, setSaving] = useState(false);
   const [signingRole, setSigningRole] = useState<'inspector' | 'manager' | null>(null);
 
   const isReadOnly = useMemo(() => existingReport?.status === 'Completed', [existingReport]);
   
+  // Valida se todos os itens foram respondidos (status não pode ser null)
+  const isAllItemsAnswered = useMemo(() => {
+      if (!reportData.results || reportData.results.length === 0) return false;
+      return reportData.results.every(r => r.status !== null);
+  }, [reportData.results]);
+  
+  const uncheckedCount = useMemo(() => {
+      if (!reportData.results) return 0;
+      return reportData.results.filter(r => r.status === null).length;
+  }, [reportData.results]);
+
   const handleResultChange = (itemId: string, newResult: Partial<InspectionItemResult>) => {
     if (isReadOnly) return;
     setReportData(prev => ({
@@ -166,18 +186,24 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
 
   const handleSubmit = async (status: 'Draft' | 'Completed') => {
     if (isReadOnly) return;
+    
+    // Validação extra antes de enviar
+    if (status === 'Completed') {
+        if (!isAllItemsAnswered) {
+            alert(`Atenção: Existem ${uncheckedCount} itens não verificados. Preencha todo o checklist antes de concluir.`);
+            return;
+        }
+        if (!reportData.signatures.inspector || !reportData.signatures.manager) {
+            alert("Ambas as assinaturas Gov.br são necessárias para concluir o relatório.");
+            return;
+        }
+    }
+
     setSaving(true);
     
-    // Auto-preencher inspetor se estiver vazio e for assistente
     let currentData = { ...reportData };
     if (!currentData.inspector) {
         currentData.inspector = userProfile.full_name;
-    }
-
-    if (status === 'Completed' && (!currentData.signatures.inspector || !currentData.signatures.manager)) {
-        alert("Ambas as assinaturas Gov.br são necessárias para concluir o relatório.");
-        setSaving(false);
-        return;
     }
 
     try {
@@ -218,15 +244,29 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
     const isNC = result.status === InspectionStatus.NC;
 
     return (
-      <div key={item.id} id={`item-${item.id}`} className="py-4 border-b border-gray-200 last:border-b-0 scroll-mt-20">
+      <div key={item.id} id={`item-${item.id}`} className={`py-4 border-b border-gray-200 last:border-b-0 scroll-mt-20 ${result.status === null ? 'bg-red-50/30 -mx-4 px-4' : ''}`}>
         <div className="flex justify-between items-start gap-4">
-            <p className="flex-1 font-medium text-gray-800 pt-1.5">{item.id.split('-').pop()?.padStart(2, '0')}. {item.text}</p>
+            <div className="flex-1 pt-1.5">
+                <p className="font-medium text-gray-800">{item.id.split('-').pop()?.padStart(2, '0')}. {item.text}</p>
+                {result.status === null && (
+                    <span className="text-xs text-red-500 font-bold flex items-center mt-1">
+                        <ExclamationTriangleIcon className="h-3 w-3 mr-1"/> Pendente de verificação
+                    </span>
+                )}
+            </div>
             <div className="flex space-x-2">
                 <StatusButton result={result} itemId={item.id} status={InspectionStatus.C} icon={CheckIcon} color="green"/>
                 <StatusButton result={result} itemId={item.id} status={InspectionStatus.NC} icon={XMarkIcon} color="red"/>
                 <StatusButton result={result} itemId={item.id} status={InspectionStatus.NA} icon={MinusIcon} color="gray"/>
             </div>
         </div>
+        
+        {/* Mostra comentário pré-carregado de pendências anteriores sempre que existir, para contexto */}
+        {result.status === null && result.comment && result.comment.includes("PENDÊNCIA ANTERIOR") && (
+             <div className="mt-2 text-xs text-orange-600 bg-orange-50 p-2 rounded border border-orange-200">
+                {result.comment}
+             </div>
+        )}
         
         <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isNC ? 'max-h-[1000px] opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
             <div className="p-4 bg-red-50/50 border border-red-200 rounded-lg space-y-4">
@@ -245,7 +285,10 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mt-2">
                         <input type="text" placeholder="Ações / Provisões" value={result.actionPlan?.actions} onChange={(e) => handleActionPlanChange(item.id, {actions: e.target.value})} disabled={isReadOnly} className="p-2 border rounded-md text-sm disabled:bg-gray-100"/>
                         <input type="text" placeholder="Responsável" value={result.actionPlan?.responsible} onChange={(e) => handleActionPlanChange(item.id, {responsible: e.target.value})} disabled={isReadOnly} className="p-2 border rounded-md text-sm disabled:bg-gray-100"/>
-                        <input type="date" placeholder="Prazo" value={result.actionPlan?.deadline} onChange={(e) => handleActionPlanChange(item.id, {deadline: e.target.value})} disabled={isReadOnly} className="p-2 border rounded-md text-sm disabled:bg-gray-100"/>
+                        <div>
+                             <label className="text-[10px] text-gray-500 uppercase font-bold ml-1">Prazo Limite (Deadline)</label>
+                             <input type="date" placeholder="Prazo Limite" value={result.actionPlan?.deadline} onChange={(e) => handleActionPlanChange(item.id, {deadline: e.target.value})} disabled={isReadOnly} className="w-full p-2 border rounded-md text-sm disabled:bg-gray-100"/>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -274,7 +317,6 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
 
   const activeCategory = CHECKLIST_DEFINITIONS.find(c => c.id === activeCategoryId);
   
-  // Controle de permissão de assinatura
   const canSignInspector = !isReadOnly && (userProfile.role === 'assistant' || userProfile.role === 'admin');
   const canSignManager = !isReadOnly && (userProfile.role === 'manager' || userProfile.role === 'admin');
 
@@ -282,6 +324,17 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
     <div className="bg-white pb-32">
         <div className="p-4 sm:p-6 min-h-[calc(100vh-200px)]">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">{existingReport ? 'Editar Relatório' : 'Novo Relatório de Inspeção'}</h2>
+            
+            {!isAllItemsAnswered && !isReadOnly && (
+                <div className="mb-4 bg-orange-50 border-l-4 border-orange-500 text-orange-700 p-4 shadow-sm rounded-r-md flex items-start">
+                    <ExclamationTriangleIcon className="h-6 w-6 mr-2 flex-shrink-0"/>
+                    <div>
+                        <p className="font-bold">Relatório Incompleto</p>
+                        <p className="text-sm">Ainda existem <strong>{uncheckedCount}</strong> itens sem verificação. A assinatura digital e o envio só estarão disponíveis após preencher todo o checklist.</p>
+                    </div>
+                </div>
+            )}
+
             {isReadOnly && (
               <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4" role="alert">
                 <p className="font-bold">Modo de Leitura</p>
@@ -306,57 +359,70 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
             {activeCategoryId === 'signatures' && (
                 <div id="signatures" className="animate-fade-in">
                     <h3 className="text-xl font-semibold text-gray-700 mb-4 bg-gray-100 p-3 rounded-lg">Assinaturas Eletrônicas</h3>
-                    <p className="text-sm text-gray-500 my-4">Para validade jurídica interna, utilize a assinatura digital via Gov.br abaixo.</p>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
-                        {/* Assinatura do Assistente */}
-                        <div className="p-4 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                            <h4 className="font-bold text-gray-800 mb-1">Responsável Ambiental (Assistente)</h4>
-                            <p className="text-xs text-gray-400 mb-4">Inspeção de Campo</p>
-                            
-                            {reportData.signatures.inspector ? (
-                                <GovBrBadge name={reportData.signatures.inspector} date={new Date().toISOString()} />
-                            ) : (
-                                <div className="mt-4">
-                                     {!canSignInspector ? (
-                                        <div className="bg-gray-100 text-gray-500 text-sm p-3 rounded text-center">
-                                            Aguardando assinatura do responsável
-                                        </div>
-                                     ) : (
-                                        <GovBrButton 
-                                            onClick={() => handleGovSign('inspector')} 
-                                            loading={signingRole === 'inspector'}
-                                            disabled={!!signingRole}
-                                        />
-                                     )}
-                                </div>
-                            )}
+                    {!isAllItemsAnswered && !isReadOnly ? (
+                        <div className="text-center py-10 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl">
+                            <ExclamationTriangleIcon className="h-12 w-12 text-gray-300 mx-auto mb-3"/>
+                            <h4 className="text-lg font-bold text-gray-500">Assinatura Bloqueada</h4>
+                            <p className="text-gray-400 text-sm max-w-md mx-auto mt-2">
+                                Para garantir a integridade da auditoria, você só poderá assinar digitalmente após responder todos os itens do checklist (Conforme, Não Conforme ou N/A).
+                            </p>
+                            <p className="text-red-500 font-bold mt-4">Restam {uncheckedCount} itens pendentes.</p>
                         </div>
-
-                        {/* Assinatura do Gerente */}
-                        <div className="p-4 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                            <h4 className="font-bold text-gray-800 mb-1">Responsável Engenharia (Engenheiro)</h4>
-                            <p className="text-xs text-gray-400 mb-4">Validação Técnica</p>
-                            
-                            {reportData.signatures.manager ? (
-                                <GovBrBadge name={reportData.signatures.manager} date={new Date().toISOString()} />
-                            ) : (
-                                <div className="mt-4">
-                                    {!canSignManager ? (
-                                        <div className="bg-gray-100 text-gray-500 text-sm p-3 rounded text-center">
-                                            Aguardando assinatura do Engenheiro
-                                        </div>
+                    ) : (
+                        <>
+                            <p className="text-sm text-gray-500 my-4">Para validade jurídica interna, utilize a assinatura digital via Gov.br abaixo.</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
+                                {/* Assinatura do Assistente */}
+                                <div className="p-4 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                                    <h4 className="font-bold text-gray-800 mb-1">Responsável Ambiental (Assistente)</h4>
+                                    <p className="text-xs text-gray-400 mb-4">Inspeção de Campo</p>
+                                    
+                                    {reportData.signatures.inspector ? (
+                                        <GovBrBadge name={reportData.signatures.inspector} date={new Date().toISOString()} />
                                     ) : (
-                                        <GovBrButton 
-                                            onClick={() => handleGovSign('manager')} 
-                                            loading={signingRole === 'manager'}
-                                            disabled={!!signingRole}
-                                        />
+                                        <div className="mt-4">
+                                            {!canSignInspector ? (
+                                                <div className="bg-gray-100 text-gray-500 text-sm p-3 rounded text-center">
+                                                    Aguardando assinatura do responsável
+                                                </div>
+                                            ) : (
+                                                <GovBrButton 
+                                                    onClick={() => handleGovSign('inspector')} 
+                                                    loading={signingRole === 'inspector'}
+                                                    disabled={!!signingRole}
+                                                />
+                                            )}
+                                        </div>
                                     )}
                                 </div>
-                            )}
-                        </div>
-                    </div>
+
+                                {/* Assinatura do Gerente */}
+                                <div className="p-4 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                                    <h4 className="font-bold text-gray-800 mb-1">Responsável Engenharia (Engenheiro)</h4>
+                                    <p className="text-xs text-gray-400 mb-4">Validação Técnica</p>
+                                    
+                                    {reportData.signatures.manager ? (
+                                        <GovBrBadge name={reportData.signatures.manager} date={new Date().toISOString()} />
+                                    ) : (
+                                        <div className="mt-4">
+                                            {!canSignManager ? (
+                                                <div className="bg-gray-100 text-gray-500 text-sm p-3 rounded text-center">
+                                                    Aguardando assinatura do Engenheiro
+                                                </div>
+                                            ) : (
+                                                <GovBrButton 
+                                                    onClick={() => handleGovSign('manager')} 
+                                                    loading={signingRole === 'manager'}
+                                                    disabled={!!signingRole}
+                                                />
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
         </div>
@@ -383,7 +449,8 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
             <PaperAirplaneIcon className="h-5 w-5 mr-2"/>
             {saving ? 'Salvando...' : 'Salvar Rascunho'}
         </button>
-        <button onClick={() => handleSubmit('Completed')} disabled={isReadOnly || saving} className="w-full sm:w-auto flex justify-center items-center px-4 py-2 text-white bg-green-600 rounded-md hover:bg-green-700 font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed">
+        {/* Desabilitado se não estiver tudo respondido */}
+        <button onClick={() => handleSubmit('Completed')} disabled={isReadOnly || saving || !isAllItemsAnswered} className="w-full sm:w-auto flex justify-center items-center px-4 py-2 text-white bg-green-600 rounded-md hover:bg-green-700 font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed">
             <CheckIcon className="h-5 w-5 mr-2"/>
             {saving ? 'Enviando...' : 'Concluir e Enviar'}
         </button>

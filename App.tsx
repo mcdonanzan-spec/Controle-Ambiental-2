@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Project, Report, UserProfile } from './types';
-import { getProjects, getReports } from './services/api';
+import { getProjects, getReports, createReportDraft } from './services/api';
 import { supabase } from './services/supabaseClient';
 import Dashboard from './components/Dashboard';
 import ProjectDashboard from './components/ProjectDashboard';
@@ -52,7 +52,6 @@ const App: React.FC = () => {
     
     if (data) {
         let role = data.role;
-        // Normalização de nomes antigos ou manuais
         if (role === 'administrador') role = 'admin';
         if (role === 'Diretoria') role = 'executive';
         if (role === 'Engenheiro') role = 'manager';
@@ -69,9 +68,6 @@ const App: React.FC = () => {
      setReports(await getReports());
   };
   
-  // Controle de Permissões
-  // Admin e Executive (Diretoria) veem tudo.
-  // Manager (Engenheiro) e Assistant (Assistente) veem apenas obras vinculadas.
   const filteredProjects = projects.filter(p => {
       if (!userProfile) return false;
       if (userProfile.role === 'admin' || userProfile.role === 'executive') return true; 
@@ -106,20 +102,34 @@ const App: React.FC = () => {
     setView('REPORT_VIEW');
   };
 
-  const handleCreateNewReport = (project: Project) => {
-    // Diretoria não cria relatório
+  const handleCreateNewReport = async (project: Project) => {
     if (userProfile?.role === 'executive') {
         alert("Perfil Diretoria é apenas para visualização.");
         return;
     }
-    setEditingReport(null);
-    setSelectedProject(project);
-    setInitialCategoryId(undefined);
-    setView('REPORT_FORM');
+    
+    // Criação de draft agora é assíncrona pois busca histórico
+    try {
+        setLoading(true);
+        const newTemplate = await createReportDraft(project.id);
+        
+        // Convertemos para o tipo esperado, adicionando um ID temporário se necessário para o state
+        // Mas o ReportForm espera `existingReport` ou gera novo.
+        // Aqui vamos passar o template como "editingReport" para pré-carregar os dados (incluindo pendências)
+        setEditingReport({ ...newTemplate, id: '', score: 0, evaluation: '', categoryScores: {} } as Report);
+        
+        setSelectedProject(project);
+        setInitialCategoryId(undefined);
+        setView('REPORT_FORM');
+    } catch (error) {
+        console.error("Erro ao criar draft", error);
+        alert("Erro ao iniciar relatório. Tente novamente.");
+    } finally {
+        setLoading(false);
+    }
   };
   
   const handleEditReport = (report: Report) => {
-    // Diretoria não edita relatório
     if (userProfile?.role === 'executive') {
         alert("Perfil Diretoria é apenas para visualização.");
         return;
@@ -134,10 +144,6 @@ const App: React.FC = () => {
     setEditingReport(report);
     setSelectedProject(projects.find(p => p.id === report.projectId) || null);
     setInitialCategoryId(categoryId);
-    // Se for executive, forçamos o modo de visualização ou usamos o Form em modo read-only (que o componente já suporta se status=Completed, mas podemos forçar via prop se necessário)
-    // No código atual do ReportForm, ele verifica status=Completed para readonly. 
-    // Para executive, a edição será bloqueada dentro do ReportForm ou aqui redirecionamos para REPORT_VIEW se preferir.
-    // Vamos deixar ir para o Form, mas o Form precisa saber se é ReadOnly por role.
     setView('REPORT_FORM');
   }
 
@@ -258,9 +264,6 @@ const App: React.FC = () => {
         );
       case 'REPORT_FORM':
         if (!selectedProject) return null;
-        // Se for executive, usamos o ReportView ou passamos o form em readonly mode.
-        // Como o ReportForm tem lógica de edição, se o usuário for executive, vamos tratar como ReadOnly forçado.
-        // No entanto, para simplificar, se for Executive tentando editar, mandamos para o View.
         if (userProfile?.role === 'executive' && editingReport) {
             return <ReportView report={editingReport} project={selectedProject} onBack={() => setView('PROJECT_DASHBOARD')} onEdit={() => {}} />
         }
@@ -305,11 +308,10 @@ const App: React.FC = () => {
 
     const navItems: { view: View; label: string; icon: React.FC<React.SVGProps<SVGSVGElement>>; roles: string[] }[] = [
       { view: 'SITES_LIST', label: 'Obras', icon: BuildingOfficeIcon, roles: ['admin', 'executive', 'manager', 'assistant'] },
-      { view: 'MANAGEMENT_DASHBOARD', label: 'KPIs', icon: ChartPieIcon, roles: ['admin', 'executive'] }, // Executive vê KPIs
+      { view: 'MANAGEMENT_DASHBOARD', label: 'KPIs', icon: ChartPieIcon, roles: ['admin', 'executive'] },
       { view: 'ADMIN_PANEL', label: 'Admin', icon: WrenchScrewdriverIcon, roles: ['admin'] },
     ];
     
-    // Filtra itens baseados na role.
     const availableNavItems = navItems.filter(item => {
         return item.roles.includes(userProfile.role);
     });
@@ -334,7 +336,7 @@ const App: React.FC = () => {
   if (loading) return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-        <p className="text-gray-500">Carregando perfil...</p>
+        <p className="text-gray-500">Carregando...</p>
       </div>
   );
   

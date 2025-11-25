@@ -135,21 +135,59 @@ export const saveReport = async (reportData: Omit<Report, 'id' | 'score' | 'eval
   }
 };
 
-export const getNewReportTemplate = (projectId: string): Omit<Report, 'id' | 'score' | 'evaluation' | 'categoryScores'> => {
+// Modificado para ser Async e buscar histórico
+export const createReportDraft = async (projectId: string): Promise<Omit<Report, 'id' | 'score' | 'evaluation' | 'categoryScores'>> => {
   const allItems = CHECKLIST_DEFINITIONS.flatMap(cat => cat.subCategories.flatMap(sub => sub.items));
   
-  const results: InspectionItemResult[] = allItems.map(item => ({
-    itemId: item.id,
-    status: null,
-    photos: [],
-    comment: '',
-    actionPlan: {
-      actions: '',
-      responsible: '',
-      deadline: '',
-      resources: { fin: false, mo: false, adm: false }
+  // 1. Buscar o último relatório desta obra para verificar pendências
+  let previousReport: Report | null = null;
+  const { data: reportsData } = await supabase
+      .from('reports')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+  if (reportsData && reportsData.length > 0) {
+      // Reconstrói o objeto Report a partir do JSON do banco
+      const r = reportsData[0];
+      previousReport = {
+          id: r.id,
+          projectId: r.project_id,
+          date: r.created_at,
+          ...r.content
+      } as Report;
+  }
+
+  const results: InspectionItemResult[] = allItems.map(item => {
+    // 2. Verificar se este item estava NC no relatório anterior
+    let preFilledComment = '';
+    let preFilledActionPlan = {
+        actions: '',
+        responsible: '',
+        deadline: '',
+        resources: { fin: false, mo: false, adm: false }
+    };
+    
+    if (previousReport) {
+        const prevResult = previousReport.results.find(res => res.itemId === item.id);
+        if (prevResult && prevResult.status === InspectionStatus.NC) {
+            // Se estava NC, trazemos o histórico para o novo relatório
+            preFilledComment = `⚠️ PENDÊNCIA ANTERIOR (${new Date(previousReport.date).toLocaleDateString()}): ${prevResult.comment || 'Sem observações'}`;
+            if (prevResult.actionPlan) {
+                preFilledActionPlan = { ...prevResult.actionPlan };
+            }
+        }
     }
-  }));
+
+    return {
+        itemId: item.id,
+        status: null, // Começa sempre como nulo para forçar re-verificação, mesmo se era NC antes
+        photos: [],
+        comment: preFilledComment,
+        actionPlan: preFilledActionPlan
+    };
+  });
 
   return {
     projectId,
@@ -163,6 +201,13 @@ export const getNewReportTemplate = (projectId: string): Omit<Report, 'id' | 'sc
     }
   };
 };
+
+// Função mantida para compatibilidade, mas redireciona para a versão async (wrapper se necessário, mas ideal usar createReportDraft)
+// No App.tsx vamos mudar para usar createReportDraft
+export const getNewReportTemplate = (projectId: string) => {
+    // Deprecated implementation - placeholder
+    throw new Error("Use createReportDraft instead");
+}
 
 // --- Storage (Fotos) ---
 export const uploadPhoto = async (file: File): Promise<string | null> => {

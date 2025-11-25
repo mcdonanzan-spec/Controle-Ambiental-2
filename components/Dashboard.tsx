@@ -1,8 +1,8 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LabelList, LineChart, Line, ReferenceArea } from 'recharts';
 import { Project, Report, InspectionStatus } from '../types';
-import { BuildingOfficeIcon, DocumentChartBarIcon, ExclamationTriangleIcon, ChartPieIcon } from './icons';
+import { BuildingOfficeIcon, DocumentChartBarIcon, ExclamationTriangleIcon, ChartPieIcon, FunnelIcon, ClockIcon } from './icons';
 
 interface DashboardProps {
   projects: Project[];
@@ -140,22 +140,44 @@ const TrendChart: React.FC<{ reports: Report[], projects: Project[] }> = ({ repo
 
 
 const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProject, onNavigateToSites, onNavigateToPendingActions }) => {
-  
-  const latestReports = useMemo(() => {
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('latest');
+
+  // Gera lista de meses disponíveis baseada nos relatórios
+  const availableMonths = useMemo(() => {
+      const months = new Set<string>();
+      reports.forEach(r => {
+          months.add(new Date(r.date).toISOString().slice(0, 7)); // YYYY-MM
+      });
+      return Array.from(months).sort().reverse();
+  }, [reports]);
+
+  // Filtra os relatórios baseados no período selecionado
+  const filteredReportsSnapshot = useMemo(() => {
       return projects.map(project => {
-          const projectReports = reports.filter(r => r.projectId === project.id);
+          let projectReports = reports.filter(r => r.projectId === project.id);
+          
+          if (selectedPeriod !== 'latest') {
+             // Se não for 'latest', pegamos apenas relatórios DO MÊS selecionado
+             projectReports = projectReports.filter(r => r.date.startsWith(selectedPeriod));
+          }
+
           if (projectReports.length === 0) return null;
+          
+          // Retorna sempre o MAIS RECENTE dentro do escopo (Seja all-time ou dentro do mês específico)
           return [...projectReports].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
       }).filter((r): r is Report => r !== null);
-  }, [projects, reports]);
+  }, [projects, reports, selectedPeriod]);
 
+  // Calcula os dados de exibição baseados no snapshot filtrado
   const data = projects.map(project => {
-    const lastReport = latestReports.find(r => r.projectId === project.id);
-    const score = lastReport ? lastReport.score : 0;
+    const report = filteredReportsSnapshot.find(r => r.projectId === project.id);
     
-    // ATUALIZAÇÃO: Contamos TUDO que é NC, independente de ter plano de ação.
-    const pendingActions = lastReport 
-        ? lastReport.results.filter(res => res.status === InspectionStatus.NC).length 
+    // Se não tem relatório no período, não entra no gráfico para não poluir com zeros falsos, ou entra com N/A
+    if (!report && selectedPeriod !== 'latest') return null;
+
+    const score = report ? report.score : 0;
+    const pendingActions = report 
+        ? report.results.filter(res => res.status === InspectionStatus.NC).length 
         : 0;
 
     return {
@@ -163,17 +185,18 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
       'Pontuação (%)': score,
       pendingActions: pendingActions,
       project, // Guardado para o onClick
+      hasData: !!report
     };
-  });
+  }).filter(item => item !== null && (selectedPeriod === 'latest' || item.hasData)) as any[];
 
   const totalPendingActions = data.reduce((sum, item) => sum + item.pendingActions, 0);
 
-  // Média Geral da Empresa (Baseada nos últimos relatórios)
+  // Média Geral da Empresa (No período selecionado)
   const averageCompanyScore = data.length > 0 
     ? Math.round(data.reduce((sum, item) => sum + item['Pontuação (%)'], 0) / data.length)
     : 0;
 
-  const overallStatus = latestReports.flatMap(r => r.results)
+  const overallStatus = filteredReportsSnapshot.flatMap(r => r.results)
     .filter(res => res.status !== null && res.status !== InspectionStatus.NA);
 
   const statusCounts = {
@@ -189,6 +212,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
   const COLORS = ['#10B981', '#EF4444'];
 
   const handlePieClick = (entry: any) => {
+    // Se estiver no passado, talvez não faça sentido navegar para pendências "atuais", mas por simplicidade mantemos a navegação.
     if (entry.name === 'Não Conforme') {
         onNavigateToPendingActions();
     } else {
@@ -196,60 +220,101 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
     }
   };
 
+  // Formatador de data para o dropdown
+  const formatMonth = (isoMonth: string) => {
+      const [year, month] = isoMonth.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1);
+      return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
+  }
+
   return (
-    <div className="space-y-8 animate-fade-in pb-10">
-      <div className="flex justify-between items-end">
+    <div className="space-y-6 animate-fade-in pb-10">
+      
+      {/* HEADER + SELETOR DE PERÍODO */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-gray-200 pb-4">
           <div>
             <h2 className="text-2xl font-bold text-gray-800">Painel Executivo</h2>
             <p className="text-sm text-gray-500">Visão consolidada do desempenho ambiental</p>
           </div>
-          <div className="hidden md:block text-right">
-             <p className="text-xs text-gray-400 uppercase font-bold">Nota Média Global</p>
-             <p className={`text-3xl font-bold ${averageCompanyScore >= 90 ? 'text-green-600' : averageCompanyScore >= 70 ? 'text-blue-600' : 'text-yellow-600'}`}>
-                {averageCompanyScore}%
-             </p>
+          
+          <div className="flex flex-col items-end gap-2 w-full md:w-auto">
+             <label className="text-xs font-bold text-gray-500 uppercase flex items-center">
+                <FunnelIcon className="h-3 w-3 mr-1"/> Período de Análise
+             </label>
+             <select 
+                value={selectedPeriod} 
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+                className="bg-white border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-64 p-2.5 shadow-sm font-medium"
+             >
+                <option value="latest">📌 VISÃO ATUAL (Última Inspeção)</option>
+                <option disabled>──────────</option>
+                {availableMonths.map(month => (
+                    <option key={month} value={month}>{formatMonth(month)}</option>
+                ))}
+             </select>
           </div>
       </div>
+
+      {/* BANNER DE MODO HISTÓRICO */}
+      {selectedPeriod !== 'latest' && (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r shadow-sm flex items-start animate-fade-in">
+              <ClockIcon className="h-6 w-6 text-yellow-600 mr-3 flex-shrink-0"/>
+              <div>
+                  <h3 className="text-sm font-bold text-yellow-800 uppercase">Modo de Análise Histórica</h3>
+                  <p className="text-sm text-yellow-700">
+                      Você está visualizando os dados consolidados referentes a <strong>{formatMonth(selectedPeriod)}</strong>. 
+                      Os indicadores abaixo refletem a situação das obras naquele momento específico.
+                  </p>
+              </div>
+              <button 
+                onClick={() => setSelectedPeriod('latest')}
+                className="ml-auto text-xs bg-yellow-200 hover:bg-yellow-300 text-yellow-900 px-3 py-1 rounded font-bold"
+              >
+                  VOLTAR PARA HOJE
+              </button>
+          </div>
+      )}
       
-      {/* KPI CARDS INTERATIVOS */}
+      {/* KPI CARDS - Agora reagem ao período */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div onClick={onNavigateToSites} className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between cursor-pointer hover:shadow-md transition-all group">
+        <div onClick={selectedPeriod === 'latest' ? onNavigateToSites : undefined} className={`bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between transition-all group ${selectedPeriod === 'latest' ? 'cursor-pointer hover:shadow-md' : ''}`}>
             <div className="flex items-center space-x-4">
                 <div className="p-3 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
                     <BuildingOfficeIcon className="h-8 w-8 text-blue-600"/>
                 </div>
                 <div>
-                    <p className="text-sm font-medium text-gray-500">Obras Monitoradas</p>
-                    <p className="text-2xl font-bold text-gray-800">{projects.length}</p>
+                    <p className="text-sm font-medium text-gray-500">Obras com Dados</p>
+                    <p className="text-2xl font-bold text-gray-800">{data.length} <span className="text-xs text-gray-400 font-normal">/ {projects.length}</span></p>
                 </div>
             </div>
-            <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded font-semibold group-hover:bg-blue-100">Ver Lista</div>
         </div>
 
-        <div onClick={onNavigateToSites} className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between cursor-pointer hover:shadow-md transition-all group">
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
             <div className="flex items-center space-x-4">
-                <div className="p-3 bg-green-50 rounded-lg group-hover:bg-green-100 transition-colors">
+                <div className="p-3 bg-green-50 rounded-lg transition-colors">
                     <DocumentChartBarIcon className="h-8 w-8 text-green-600"/>
                 </div>
                 <div>
-                    <p className="text-sm font-medium text-gray-500">Relatórios Emitidos</p>
-                    <p className="text-2xl font-bold text-gray-800">{reports.length}</p>
+                    <p className="text-sm font-medium text-gray-500">Nota Média ({selectedPeriod === 'latest' ? 'Atual' : 'No Mês'})</p>
+                    <p className={`text-2xl font-bold ${averageCompanyScore >= 90 ? 'text-green-600' : averageCompanyScore >= 70 ? 'text-blue-600' : 'text-yellow-600'}`}>
+                        {averageCompanyScore}%
+                    </p>
                 </div>
             </div>
         </div>
 
-        <div onClick={onNavigateToPendingActions} className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between cursor-pointer hover:shadow-md transition-all group">
+        <div onClick={selectedPeriod === 'latest' ? onNavigateToPendingActions : undefined} className={`bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between transition-all group ${selectedPeriod === 'latest' ? 'cursor-pointer hover:shadow-md' : ''}`}>
             <div className="flex items-center space-x-4">
                 <div className={`p-3 rounded-lg transition-colors ${totalPendingActions > 0 ? 'bg-red-50 group-hover:bg-red-100' : 'bg-gray-50'}`}>
                     <ExclamationTriangleIcon className={`h-8 w-8 ${totalPendingActions > 0 ? 'text-red-600' : 'text-gray-400'}`}/>
                 </div>
                 <div>
-                    <p className="text-sm font-medium text-gray-500">Não Conformidades</p>
+                    <p className="text-sm font-medium text-gray-500">NCs no Período</p>
                     <p className="text-2xl font-bold text-gray-800">{totalPendingActions}</p>
                 </div>
             </div>
-            {totalPendingActions > 0 && (
-                <div className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded font-semibold group-hover:bg-red-100 animate-pulse">Ver Detalhes</div>
+             {selectedPeriod === 'latest' && totalPendingActions > 0 && (
+                <div className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded font-semibold group-hover:bg-red-100">Ver Detalhes</div>
             )}
         </div>
       </div>
@@ -258,8 +323,8 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
         {/* BAR CHART */}
         <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-md border border-gray-100">
           <div className="mb-6 flex justify-between items-center">
-            <h2 className="text-lg font-bold text-gray-700">Ranking de Conformidade Atual</h2>
-            <span className="text-xs text-gray-400 font-medium bg-gray-50 px-2 py-1 rounded border">Clique na barra para detalhar</span>
+            <h2 className="text-lg font-bold text-gray-700">Ranking de Desempenho {selectedPeriod !== 'latest' && <span className="text-yellow-600">(Histórico)</span>}</h2>
+            {selectedPeriod === 'latest' && <span className="text-xs text-gray-400 font-medium bg-gray-50 px-2 py-1 rounded border">Clique na barra para detalhar</span>}
           </div>
           
           {data.length > 0 ? (
@@ -276,8 +341,8 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                     <Bar 
                         dataKey="Pontuação (%)" 
                         radius={[4, 4, 0, 0]} 
-                        onClick={(d: any) => onSelectProject(d.project)} 
-                        className="cursor-pointer transition-all duration-300 hover:opacity-80"
+                        onClick={(d: any) => selectedPeriod === 'latest' && onSelectProject(d.project)} 
+                        className={`transition-all duration-300 ${selectedPeriod === 'latest' ? 'cursor-pointer hover:opacity-80' : 'cursor-default opacity-90'}`}
                     >
                         {data.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry['Pontuação (%)'] >= 90 ? '#10B981' : entry['Pontuação (%)'] >= 70 ? '#3B82F6' : '#F59E0B'} />
@@ -292,7 +357,9 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                 </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[300px] flex items-center justify-center text-gray-400">Nenhuma obra cadastrada</div>
+            <div className="h-[300px] flex items-center justify-center text-gray-400 bg-gray-50 rounded-lg border border-dashed">
+                <p>Nenhum dado encontrado para este período.</p>
+            </div>
           )}
         </div>
 
@@ -301,8 +368,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
           <div>
             <h2 className="text-lg font-bold text-gray-700 mb-2">Aderência aos Processos</h2>
             <div className="flex justify-between items-start">
-                 <p className="text-xs text-gray-500 mb-6">Proporção de itens conformes em todas as obras ativas.</p>
-                 <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 font-semibold whitespace-nowrap">Clique na fatia</span>
+                 <p className="text-xs text-gray-500 mb-6">Proporção de itens conformes nas obras analisadas.</p>
             </div>
           </div>
           
@@ -320,7 +386,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                         dataKey="value" 
                         stroke="none"
                         onClick={handlePieClick}
-                        className="cursor-pointer hover:opacity-80 transition-opacity"
+                        className={`${selectedPeriod === 'latest' ? 'cursor-pointer hover:opacity-80' : ''} transition-opacity`}
                     >
                         {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                     </Pie>
@@ -337,12 +403,12 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                 </div>
             </div>
           ) : (
-            <div className="h-[200px] flex items-center justify-center text-gray-400">Sem dados</div>
+            <div className="h-[200px] flex items-center justify-center text-gray-400 bg-gray-50 rounded-lg">Sem dados</div>
           )}
         </div>
       </div>
       
-      {/* TREND CHART */}
+      {/* TREND CHART - Sempre mostra o histórico completo para contexto */}
       <div className="bg-white p-6 rounded-lg shadow-md border border-gray-100">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-2">
             <div>
@@ -350,8 +416,8 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                 <p className="text-xs text-gray-500">Média ponderada mensal das inspeções. Acompanhe se as obras estão melhorando ou piorando ao longo do tempo.</p>
             </div>
             <div className="flex items-center space-x-2 text-xs bg-gray-50 p-2 rounded border">
-                <span className="font-semibold text-gray-600">Período:</span>
-                <span className="text-gray-500">Últimos 12 Meses</span>
+                <span className="font-semibold text-gray-600">Contexto:</span>
+                <span className="text-gray-500">Últimos 12 Meses (Fixo)</span>
             </div>
           </div>
           <TrendChart reports={reports} projects={projects} />

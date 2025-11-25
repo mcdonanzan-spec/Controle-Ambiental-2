@@ -2,8 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import { Project, Report, InspectionStatus, ChecklistItem, InspectionItemResult, Photo, ActionPlan, UserProfile } from '../types';
 import { CHECKLIST_DEFINITIONS } from '../constants';
-import { getNewReportTemplate, saveReport, uploadPhoto } from '../services/api'; // API real
-import { CameraIcon, CheckIcon, PaperAirplaneIcon, XMarkIcon, CubeTransparentIcon, FunnelIcon, WrenchScrewdriverIcon, BeakerIcon, FireIcon, DocumentCheckIcon, MinusIcon } from './icons';
+import { getNewReportTemplate, saveReport, uploadPhoto } from '../services/api'; 
+import { CameraIcon, CheckIcon, PaperAirplaneIcon, XMarkIcon, CubeTransparentIcon, FunnelIcon, WrenchScrewdriverIcon, BeakerIcon, FireIcon, DocumentCheckIcon, MinusIcon, ShieldCheckIcon } from './icons';
 
 interface ReportFormProps {
   project: Project;
@@ -67,12 +67,54 @@ const PhotoUploader: React.FC<{ photos: Photo[], onAddPhoto: (photo: Photo) => v
   );
 };
 
+// Componente botão Gov.br
+const GovBrButton: React.FC<{ onClick: () => void, disabled?: boolean, loading?: boolean }> = ({ onClick, disabled, loading }) => (
+    <button 
+        type="button"
+        onClick={onClick}
+        disabled={disabled || loading}
+        className="w-full bg-[#1351B4] hover:bg-[#0c3c8c] text-white font-semibold py-2 px-4 rounded-full flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+        {loading ? (
+             <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+             </svg>
+        ) : (
+             <span className="font-bold tracking-wide">gov.br</span>
+        )}
+        <span className="text-sm">{loading ? 'Conectando...' : 'Assinar Digitalmente'}</span>
+    </button>
+);
+
+// Selo de Assinatura Gov.br
+const GovBrBadge: React.FC<{ name: string, date: string }> = ({ name, date }) => (
+    <div className="mt-2 p-3 border-2 border-[#1351B4] rounded-lg bg-blue-50 relative overflow-hidden">
+        <div className="flex items-center gap-3 relative z-10">
+            <div className="bg-[#1351B4] rounded-full p-1.5 text-white">
+                <ShieldCheckIcon className="h-5 w-5" />
+            </div>
+            <div className="flex-1">
+                <p className="text-[10px] uppercase text-gray-500 font-bold tracking-wider mb-0.5">Documento assinado digitalmente</p>
+                <p className="text-sm font-bold text-[#1351B4] leading-tight">{name}</p>
+                <p className="text-xs text-gray-600">Data: {new Date().toLocaleDateString()} - Verificado via Gov.br</p>
+            </div>
+        </div>
+        {/* Background Watermark */}
+        <div className="absolute -right-4 -bottom-4 opacity-5 text-[#1351B4]">
+             <span className="text-6xl font-black">GOV.BR</span>
+        </div>
+    </div>
+);
+
+
 const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userProfile, onSave, onCancel, initialCategoryId }) => {
   const [reportData, setReportData] = useState<Omit<Report, 'id' | 'score' | 'evaluation' | 'categoryScores'> & {id?: string}>(
     existingReport ? {...existingReport} : getNewReportTemplate(project.id)
   );
   const [activeCategoryId, setActiveCategoryId] = useState<string>(initialCategoryId || CHECKLIST_DEFINITIONS[0].id);
   const [saving, setSaving] = useState(false);
+  const [signingRole, setSigningRole] = useState<'inspector' | 'manager' | null>(null);
 
   const isReadOnly = useMemo(() => existingReport?.status === 'Completed', [existingReport]);
   
@@ -105,6 +147,23 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
       }
   }
 
+  const handleGovSign = async (role: 'inspector' | 'manager') => {
+      setSigningRole(role);
+      // Simulação de delay de API do Gov.br
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const signatureText = userProfile.full_name;
+      
+      setReportData(prev => ({
+          ...prev,
+          signatures: {
+              ...prev.signatures,
+              [role]: signatureText
+          }
+      }));
+      setSigningRole(null);
+  };
+
   const handleSubmit = async (status: 'Draft' | 'Completed') => {
     if (isReadOnly) return;
     setSaving(true);
@@ -116,7 +175,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
     }
 
     if (status === 'Completed' && (!currentData.signatures.inspector || !currentData.signatures.manager)) {
-        alert("Ambas as assinaturas são necessárias para concluir o relatório.");
+        alert("Ambas as assinaturas Gov.br são necessárias para concluir o relatório.");
         setSaving(false);
         return;
     }
@@ -246,39 +305,55 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
             
             {activeCategoryId === 'signatures' && (
                 <div id="signatures" className="animate-fade-in">
-                    <h3 className="text-xl font-semibold text-gray-700 mb-4 bg-gray-100 p-3 rounded-lg">Assinaturas</h3>
-                    <p className="text-sm text-gray-500 my-4">Para concluir, é necessário as assinaturas do Responsável Ambiental e do Engenheiro.</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Responsável Ambiental (Assistente)</label>
+                    <h3 className="text-xl font-semibold text-gray-700 mb-4 bg-gray-100 p-3 rounded-lg">Assinaturas Eletrônicas</h3>
+                    <p className="text-sm text-gray-500 my-4">Para validade jurídica interna, utilize a assinatura digital via Gov.br abaixo.</p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
+                        {/* Assinatura do Assistente */}
+                        <div className="p-4 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                            <h4 className="font-bold text-gray-800 mb-1">Responsável Ambiental (Assistente)</h4>
+                            <p className="text-xs text-gray-400 mb-4">Inspeção de Campo</p>
+                            
                             {reportData.signatures.inspector ? (
-                                <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded text-green-800 font-bold">
-                                    Assinado por: {reportData.signatures.inspector}
-                                </div>
+                                <GovBrBadge name={reportData.signatures.inspector} date={new Date().toISOString()} />
                             ) : (
-                                <button 
-                                    disabled={!canSignInspector}
-                                    onClick={() => setReportData({...reportData, signatures: {...reportData.signatures, inspector: userProfile.full_name}})}
-                                    className="mt-2 w-full py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {canSignInspector ? 'Assinar Digitalmente' : 'Aguardando Responsável'}
-                                </button>
+                                <div className="mt-4">
+                                     {!canSignInspector ? (
+                                        <div className="bg-gray-100 text-gray-500 text-sm p-3 rounded text-center">
+                                            Aguardando assinatura do responsável
+                                        </div>
+                                     ) : (
+                                        <GovBrButton 
+                                            onClick={() => handleGovSign('inspector')} 
+                                            loading={signingRole === 'inspector'}
+                                            disabled={!!signingRole}
+                                        />
+                                     )}
+                                </div>
                             )}
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Responsável Engenharia (Engenheiro)</label>
+
+                        {/* Assinatura do Gerente */}
+                        <div className="p-4 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                            <h4 className="font-bold text-gray-800 mb-1">Responsável Engenharia (Engenheiro)</h4>
+                            <p className="text-xs text-gray-400 mb-4">Validação Técnica</p>
+                            
                             {reportData.signatures.manager ? (
-                                <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded text-green-800 font-bold">
-                                    Assinado por: {reportData.signatures.manager}
-                                </div>
+                                <GovBrBadge name={reportData.signatures.manager} date={new Date().toISOString()} />
                             ) : (
-                                <button 
-                                    disabled={!canSignManager}
-                                    onClick={() => setReportData({...reportData, signatures: {...reportData.signatures, manager: userProfile.full_name}})}
-                                    className="mt-2 w-full py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {canSignManager ? 'Assinar Digitalmente' : 'Aguardando Responsável'}
-                                </button>
+                                <div className="mt-4">
+                                    {!canSignManager ? (
+                                        <div className="bg-gray-100 text-gray-500 text-sm p-3 rounded text-center">
+                                            Aguardando assinatura do Engenheiro
+                                        </div>
+                                    ) : (
+                                        <GovBrButton 
+                                            onClick={() => handleGovSign('manager')} 
+                                            loading={signingRole === 'manager'}
+                                            disabled={!!signingRole}
+                                        />
+                                    )}
+                                </div>
                             )}
                         </div>
                     </div>

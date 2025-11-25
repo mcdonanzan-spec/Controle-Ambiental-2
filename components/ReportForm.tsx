@@ -14,7 +14,7 @@ interface ReportFormProps {
   initialCategoryId?: string;
 }
 
-const PhotoUploader: React.FC<{ photos: Photo[], onAddPhoto: (photo: Photo) => void, onRemovePhoto: (id: string) => void, disabled?: boolean }> = ({ photos, onAddPhoto, onRemovePhoto, disabled }) => {
+const PhotoUploader: React.FC<{ photos: Photo[], onAddPhoto: (photo: Photo) => void, onRemovePhoto: (id: string) => void, disabled?: boolean, compact?: boolean }> = ({ photos, onAddPhoto, onRemovePhoto, disabled, compact }) => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -44,11 +44,11 @@ const PhotoUploader: React.FC<{ photos: Photo[], onAddPhoto: (photo: Photo) => v
   };
 
   return (
-    <div className="mt-2 flex items-center gap-2 flex-wrap">
+    <div className={`flex items-center gap-2 flex-wrap ${compact ? 'mt-1' : 'mt-2'}`}>
       {photos.map(photo => (
         <div key={photo.id} className="relative group">
-          <img src={photo.dataUrl} alt="inspection" className="h-20 w-20 rounded-md object-cover" />
-          <button disabled={disabled} onClick={() => onRemovePhoto(photo.id)} className={`absolute top-0 right-0 bg-red-600 text-white rounded-full p-1 transform translate-x-1/2 -translate-y-1/2 ${disabled ? 'hidden' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
+          <img src={photo.dataUrl} alt="inspection" className={`${compact ? 'h-12 w-12' : 'h-20 w-20'} rounded-md object-cover border border-gray-200`} />
+          <button disabled={disabled} onClick={() => onRemovePhoto(photo.id)} className={`absolute top-0 right-0 bg-red-600 text-white rounded-full p-0.5 transform translate-x-1/2 -translate-y-1/2 ${disabled ? 'hidden' : 'opacity-0 group-hover:opacity-100'} transition-opacity shadow-sm`}>
             <XMarkIcon className="h-3 w-3" />
           </button>
         </div>
@@ -58,10 +58,10 @@ const PhotoUploader: React.FC<{ photos: Photo[], onAddPhoto: (photo: Photo) => v
         type="button"
         onClick={() => fileInputRef.current?.click()}
         disabled={disabled || uploading}
-        className="h-20 w-20 bg-gray-100 border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center text-gray-500 hover:bg-gray-200 hover:border-gray-400 transition disabled:bg-gray-200 disabled:cursor-not-allowed"
+        className={`${compact ? 'h-12 w-12' : 'h-20 w-20'} bg-gray-50 border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center text-gray-400 hover:bg-gray-100 hover:border-gray-400 transition disabled:bg-gray-100 disabled:cursor-not-allowed`}
+        title="Adicionar Foto"
       >
-        {uploading ? <span className="text-xs">Enviando...</span> : <CameraIcon className="h-8 w-8" />}
-        {!uploading && <span className="text-xs mt-1">Adicionar</span>}
+        {uploading ? <span className="text-[8px]">...</span> : <CameraIcon className={`${compact ? 'h-5 w-5' : 'h-8 w-8'}`} />}
       </button>
     </div>
   );
@@ -256,6 +256,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
     const result = reportData.results.find(r => r.itemId === item.id);
     if (!result) return null;
     const isNC = result.status === InspectionStatus.NC;
+    const isC = result.status === InspectionStatus.C;
 
     return (
       <div key={item.id} id={`item-${item.id}`} className={`py-4 border-b border-gray-200 last:border-b-0 scroll-mt-20 ${result.status === null ? 'bg-red-50/30 -mx-4 px-4' : ''}`}>
@@ -283,10 +284,31 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
              </div>
         )}
         
+        {/* PAINEL DE CONFORMIDADE (Compacto) */}
+        <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isC ? 'max-h-[300px] opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
+            <div className="p-3 bg-green-50/50 border border-green-200 rounded-lg flex flex-col md:flex-row gap-4 items-start">
+                <div className="flex-shrink-0">
+                    <label className="text-[10px] uppercase font-bold text-green-700 mb-1 block">Evidência (Opcional)</label>
+                    <PhotoUploader compact photos={result.photos} onAddPhoto={(photo) => handleAddPhoto(item.id, photo)} onRemovePhoto={(photoId) => handleRemovePhoto(item.id, photoId)} disabled={isReadOnly} />
+                </div>
+                <div className="flex-1 w-full">
+                    <label className="text-[10px] uppercase font-bold text-green-700 mb-1 block">Boas Práticas / Comentário</label>
+                    <textarea 
+                        value={result.comment && !result.comment.includes("PENDÊNCIA") ? result.comment : ''} 
+                        onChange={e => handleResultChange(item.id, { comment: e.target.value.toUpperCase() })} 
+                        placeholder="Ex: Local limpo e organizado..."
+                        disabled={isReadOnly}
+                        className="w-full p-2 border border-green-200 bg-white rounded-md focus:ring-green-500 focus:border-green-500 disabled:bg-gray-100 text-sm h-[60px] uppercase"
+                    />
+                </div>
+            </div>
+        </div>
+
+        {/* PAINEL DE NÃO CONFORMIDADE (Completo) */}
         <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isNC ? 'max-h-[1000px] opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
-            <div className="p-4 bg-red-50/50 border border-red-200 rounded-lg space-y-4">
+            <div className="p-4 bg-red-50/50 border border-red-200 rounded-lg space-y-4 shadow-sm">
                 <div>
-                    <label className="text-sm font-semibold text-gray-700">Observações</label>
+                    <label className="text-sm font-semibold text-gray-700">Descrição do Problema</label>
                     <textarea value={result.comment} onChange={e => handleResultChange(item.id, { comment: e.target.value.toUpperCase() })} placeholder="DESCREVA A NÃO CONFORMIDADE..."
                     disabled={isReadOnly}
                     className="w-full mt-1 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 uppercase" rows={2}/>
@@ -295,17 +317,23 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                     <label className="text-sm font-semibold text-gray-700">Evidência Fotográfica</label>
                     <PhotoUploader photos={result.photos} onAddPhoto={(photo) => handleAddPhoto(item.id, photo)} onRemovePhoto={(photoId) => handleRemovePhoto(item.id, photoId)} disabled={isReadOnly} />
                 </div>
-                 <div>
-                    <h4 className="font-semibold text-red-800 text-sm flex items-center">
+                 <div className="bg-white p-3 rounded border border-red-100">
+                    <h4 className="font-semibold text-red-800 text-sm flex items-center border-b border-red-100 pb-2 mb-2">
                         Plano de Ação Corretiva
-                        <span className="ml-2 text-[10px] bg-red-200 text-red-800 px-2 py-0.5 rounded-full uppercase">Obrigatório</span>
+                        <span className="ml-auto text-[10px] bg-red-100 text-red-800 px-2 py-0.5 rounded-full uppercase font-bold tracking-wide">Obrigatório</span>
                     </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mt-2">
-                        <input type="text" placeholder="O QUE SERÁ FEITO? (AÇÃO)" value={result.actionPlan?.actions} onChange={(e) => handleActionPlanChange(item.id, {actions: e.target.value.toUpperCase()})} disabled={isReadOnly} className="p-2 border rounded-md text-sm disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500 uppercase"/>
-                        <input type="text" placeholder="RESPONSÁVEL" value={result.actionPlan?.responsible} onChange={(e) => handleActionPlanChange(item.id, {responsible: e.target.value.toUpperCase()})} disabled={isReadOnly} className="p-2 border rounded-md text-sm disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500 uppercase"/>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
                         <div className="md:col-span-2">
-                             <label className="text-[10px] text-gray-700 uppercase font-bold ml-1">Prazo Limite (Deadline)</label>
-                             <input type="date" placeholder="Prazo Limite" value={result.actionPlan?.deadline} onChange={(e) => handleActionPlanChange(item.id, {deadline: e.target.value})} disabled={isReadOnly} className="w-full p-2 border rounded-md text-sm disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500"/>
+                            <label className="text-[10px] text-gray-500 uppercase font-bold">Ação Necessária</label>
+                            <input type="text" placeholder="O QUE SERÁ FEITO?" value={result.actionPlan?.actions} onChange={(e) => handleActionPlanChange(item.id, {actions: e.target.value.toUpperCase()})} disabled={isReadOnly} className="w-full p-2 border rounded-md text-sm disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500 uppercase"/>
+                        </div>
+                        <div>
+                            <label className="text-[10px] text-gray-500 uppercase font-bold">Responsável</label>
+                            <input type="text" placeholder="QUEM FARÁ?" value={result.actionPlan?.responsible} onChange={(e) => handleActionPlanChange(item.id, {responsible: e.target.value.toUpperCase()})} disabled={isReadOnly} className="w-full p-2 border rounded-md text-sm disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500 uppercase"/>
+                        </div>
+                        <div>
+                             <label className="text-[10px] text-gray-500 uppercase font-bold">Prazo Limite</label>
+                             <input type="date" value={result.actionPlan?.deadline} onChange={(e) => handleActionPlanChange(item.id, {deadline: e.target.value})} disabled={isReadOnly} className="w-full p-2 border rounded-md text-sm disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500"/>
                         </div>
                     </div>
                 </div>

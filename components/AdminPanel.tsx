@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Project, UserProfile } from '../types';
 import { createProject, updateProject, deleteProject, getAllProfiles, updateUserProfile, deleteUserProfile, createUserAccount } from '../services/api';
-import { BuildingOfficeIcon, UserCircleIcon, PlusIcon, PencilIcon, TrashIcon, CheckIcon, XMarkIcon } from './icons';
+import { BuildingOfficeIcon, UserCircleIcon, PlusIcon, PencilIcon, TrashIcon, CheckIcon, XMarkIcon, DocumentCheckIcon } from './icons';
 
 interface AdminPanelProps {
     projects: Project[];
@@ -27,6 +27,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ projects, onProjectCreated }) =
     const [userRole, setUserRole] = useState('assistant');
     const [userProjects, setUserProjects] = useState<string[]>([]);
     const [showUserModal, setShowUserModal] = useState(false);
+    
+    // State para Modal de Sucesso (Credenciais)
+    const [createdCredentials, setCreatedCredentials] = useState<{name: string, email: string, pass: string} | null>(null);
 
     useEffect(() => {
         loadProfiles();
@@ -102,7 +105,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ projects, onProjectCreated }) =
             setUserEmail(user.email);
             setUserRole(user.role);
             setUserProjects(user.assigned_project_ids || []);
-            setUserPass(''); // Senha não é recuperável, só redefinível (mas na edição simples de perfil não vamos trocar senha aqui por simplicidade)
+            setUserPass(''); 
         } else {
             setEditingUser(null);
             setUserName('');
@@ -118,6 +121,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ projects, onProjectCreated }) =
         setShowUserModal(false);
         setEditingUser(null);
     };
+    
+    const closeCredentialsModal = () => {
+        setCreatedCredentials(null);
+    }
 
     const toggleProjectForUser = (projectId: string) => {
         setUserProjects(prev => {
@@ -125,6 +132,25 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ projects, onProjectCreated }) =
             return [...prev, projectId];
         });
     };
+    
+    const copyCredentials = () => {
+        if (!createdCredentials) return;
+        const text = `
+ACESSO CONTROLE AMBIENTAL
+-------------------------
+Olá, ${createdCredentials.name}!
+Seu acesso ao sistema foi criado.
+
+Link: ${window.location.origin}
+Email: ${createdCredentials.email}
+Senha Provisória: ${createdCredentials.pass}
+
+Por favor, acesse e realize suas inspeções.
+        `.trim();
+        
+        navigator.clipboard.writeText(text);
+        alert("Credenciais copiadas! Cole no WhatsApp ou E-mail.");
+    }
 
     const handleSaveUser = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -143,6 +169,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ projects, onProjectCreated }) =
                     assigned_project_ids: userProjects
                 });
                 alert(`Usuário ${userName} atualizado com sucesso!`);
+                closeUserModal();
             } else {
                 // Criar
                 if (!userEmail || !userPass) {
@@ -157,9 +184,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ projects, onProjectCreated }) =
                     role: userRole,
                     projectIds: userProjects
                 });
-                alert(`Usuário ${userName} criado com sucesso!`);
+                // SUCESSO NA CRIAÇÃO: Mostra Modal de Credenciais
+                setCreatedCredentials({
+                    name: userName,
+                    email: userEmail,
+                    pass: userPass
+                });
+                closeUserModal(); // Fecha o form, mas abre o modal de credenciais logo em seguida pelo render
             }
-            closeUserModal();
             await loadProfiles();
         } catch (error: any) {
             console.error(error);
@@ -332,8 +364,49 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ projects, onProjectCreated }) =
                     </div>
                 </div>
             )}
+            
+            {/* MODAL DE CREDENCIAIS CRIADAS (Novo) */}
+            {createdCredentials && (
+                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[70] p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md transform transition-all scale-100 animate-fade-in border-t-4 border-green-500">
+                        <div className="p-6 text-center">
+                            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
+                                <CheckIcon className="h-8 w-8 text-green-600" />
+                            </div>
+                            <h3 className="text-2xl font-bold text-gray-900 mb-2">Usuário Criado!</h3>
+                            <p className="text-gray-500 text-sm mb-6">
+                                As credenciais foram geradas. Copie os dados abaixo e envie para o novo usuário.
+                            </p>
 
-            {/* MODAL DE USUÁRIO */}
+                            <div className="bg-gray-50 rounded-lg p-4 text-left border border-gray-200 mb-6 font-mono text-sm relative group">
+                                <div className="space-y-2">
+                                    <p><span className="text-gray-400 select-none">Link:</span> <span className="text-blue-600 break-all">{window.location.origin}</span></p>
+                                    <p><span className="text-gray-400 select-none">User:</span> <span className="text-gray-800 font-bold">{createdCredentials.email}</span></p>
+                                    <p><span className="text-gray-400 select-none">Pass:</span> <span className="text-gray-800 font-bold">{createdCredentials.pass}</span></p>
+                                </div>
+                            </div>
+                            
+                            <div className="flex flex-col gap-3">
+                                <button 
+                                    onClick={copyCredentials} 
+                                    className="w-full inline-flex justify-center items-center px-4 py-3 border border-transparent text-sm font-bold rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none shadow-sm"
+                                >
+                                    <DocumentCheckIcon className="h-5 w-5 mr-2"/>
+                                    Copiar Acesso para Área de Transferência
+                                </button>
+                                <button 
+                                    onClick={closeCredentialsModal} 
+                                    className="w-full inline-flex justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
+                                >
+                                    Fechar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL DE USUÁRIO (Formulário) */}
             {showUserModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
                     <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">

@@ -286,9 +286,9 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
             <div className="p-4 bg-red-50/50 border border-red-200 rounded-lg space-y-4">
                 <div>
                     <label className="text-sm font-semibold text-gray-700">Observações</label>
-                    <textarea value={result.comment} onChange={e => handleResultChange(item.id, { comment: e.target.value })} placeholder="Descreva a não conformidade..."
+                    <textarea value={result.comment} onChange={e => handleResultChange(item.id, { comment: e.target.value.toUpperCase() })} placeholder="DESCREVA A NÃO CONFORMIDADE..."
                     disabled={isReadOnly}
-                    className="w-full mt-1 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100" rows={2}/>
+                    className="w-full mt-1 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 uppercase" rows={2}/>
                 </div>
                  <div>
                     <label className="text-sm font-semibold text-gray-700">Evidência Fotográfica</label>
@@ -300,8 +300,8 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                         <span className="ml-2 text-[10px] bg-red-200 text-red-800 px-2 py-0.5 rounded-full uppercase">Obrigatório</span>
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mt-2">
-                        <input type="text" placeholder="O que será feito? (Ação)" value={result.actionPlan?.actions} onChange={(e) => handleActionPlanChange(item.id, {actions: e.target.value})} disabled={isReadOnly} className="p-2 border rounded-md text-sm disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500"/>
-                        <input type="text" placeholder="Responsável" value={result.actionPlan?.responsible} onChange={(e) => handleActionPlanChange(item.id, {responsible: e.target.value})} disabled={isReadOnly} className="p-2 border rounded-md text-sm disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500"/>
+                        <input type="text" placeholder="O QUE SERÁ FEITO? (AÇÃO)" value={result.actionPlan?.actions} onChange={(e) => handleActionPlanChange(item.id, {actions: e.target.value.toUpperCase()})} disabled={isReadOnly} className="p-2 border rounded-md text-sm disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500 uppercase"/>
+                        <input type="text" placeholder="RESPONSÁVEL" value={result.actionPlan?.responsible} onChange={(e) => handleActionPlanChange(item.id, {responsible: e.target.value.toUpperCase()})} disabled={isReadOnly} className="p-2 border rounded-md text-sm disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500 uppercase"/>
                         <div className="md:col-span-2">
                              <label className="text-[10px] text-gray-700 uppercase font-bold ml-1">Prazo Limite (Deadline)</label>
                              <input type="date" placeholder="Prazo Limite" value={result.actionPlan?.deadline} onChange={(e) => handleActionPlanChange(item.id, {deadline: e.target.value})} disabled={isReadOnly} className="w-full p-2 border rounded-md text-sm disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500"/>

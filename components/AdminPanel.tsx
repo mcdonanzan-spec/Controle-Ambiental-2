@@ -154,11 +154,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ projects, onProjectCreated }) =
                         <form onSubmit={handleCreateProject} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">Nome da Obra</label>
-                                <input type="text" value={newProjectName} onChange={e => setNewProjectName(e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="Ex: Residencial Flores" required />
+                                <input type="text" value={newProjectName} onChange={e => setNewProjectName(e.target.value.toUpperCase())} className="mt-1 block w-full p-2 border border-gray-300 rounded-md uppercase" placeholder="EX: RESIDENCIAL FLORES" required />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">Localização</label>
-                                <input type="text" value={newProjectLoc} onChange={e => setNewProjectLoc(e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="Ex: São Paulo, SP" required />
+                                <input type="text" value={newProjectLoc} onChange={e => setNewProjectLoc(e.target.value.toUpperCase())} className="mt-1 block w-full p-2 border border-gray-300 rounded-md uppercase" placeholder="EX: SÃO PAULO, SP" required />
                             </div>
                             <button type="submit" disabled={loading} className="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 font-medium">
                                 {loading ? 'Criando...' : 'Criar Obra'}
@@ -195,7 +195,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ projects, onProjectCreated }) =
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700">Nome Completo</label>
-                                    <input type="text" value={newUserName} onChange={e => setNewUserName(e.target.value)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md" required />
+                                    <input type="text" value={newUserName} onChange={e => setNewUserName(e.target.value.toUpperCase())} className="mt-1 block w-full p-2 border border-gray-300 rounded-md uppercase" required />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700">Perfil (Acesso)</label>

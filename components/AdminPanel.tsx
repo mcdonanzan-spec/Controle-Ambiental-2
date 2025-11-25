@@ -1,8 +1,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { Project, UserProfile } from '../types';
-import { createProject, updateProject, deleteProject, getAllProfiles, updateUserProfile, deleteUserProfile, createUserAccount } from '../services/api';
-import { BuildingOfficeIcon, UserCircleIcon, PlusIcon, PencilIcon, TrashIcon, CheckIcon, XMarkIcon, DocumentCheckIcon } from './icons';
+import { createProject, updateProject, deleteProject, getAllProfiles, updateUserProfile, deleteUserCompletely, createUserAccount } from '../services/api';
+import { BuildingOfficeIcon, UserCircleIcon, PlusIcon, PencilIcon, TrashIcon, CheckIcon, XMarkIcon, DocumentCheckIcon, ExclamationTriangleIcon } from './icons';
 
 interface AdminPanelProps {
     projects: Project[];
@@ -201,21 +201,23 @@ Por favor, acesse e realize suas inspeções.
             await loadProfiles();
         } catch (error: any) {
             console.error(error);
-            alert(`Erro ao salvar usuário: ${error.message}`);
+            alert(`ATENÇÃO: ${error.message}`);
         } finally {
             setLoading(false);
         }
     };
 
     const handleDeleteUser = async (user: UserProfile) => {
-        if (!window.confirm(`Tem certeza que deseja excluir o usuário ${user.full_name}?`)) return;
+        if (!window.confirm(`Tem certeza que deseja excluir DEFINITIVAMENTE o usuário ${user.full_name}?\n\nIsso apagará o Login e o Perfil de acesso.`)) return;
         
         setLoading(true);
         try {
-            await deleteUserProfile(user.id);
-            alert("Usuário removido da lista.");
+            // Agora usamos a função que apaga tudo (Login + Perfil)
+            await deleteUserCompletely(user.email);
+            alert("Usuário e credenciais removidos com sucesso.");
             await loadProfiles();
         } catch (error: any) {
+            console.error(error);
             alert(`Erro ao excluir: ${error.message}`);
         } finally {
             setLoading(false);
@@ -304,7 +306,11 @@ Por favor, acesse e realize suas inspeções.
             {/* --- ABA USUÁRIOS --- */}
             {activeTab === 'users' && (
                 <div className="space-y-6">
-                     <div className="flex justify-end">
+                     <div className="flex justify-between items-center bg-blue-50 p-4 rounded-lg border border-blue-100">
+                         <div className="flex items-center text-sm text-blue-800">
+                            <ExclamationTriangleIcon className="h-5 w-5 mr-2 text-blue-600"/>
+                            <span>Dica: Agora você pode excluir usuários completamente (Login + Perfil) clicando na lixeira.</span>
+                         </div>
                         <button onClick={() => openUserModal()} className="flex items-center bg-green-600 text-white px-4 py-2 rounded-md shadow hover:bg-green-700 font-bold">
                             <PlusIcon className="h-5 w-5 mr-2" /> Novo Usuário
                         </button>
@@ -358,7 +364,7 @@ Por favor, acesse e realize suas inspeções.
                                                 <button onClick={() => openUserModal(user)} className="text-blue-600 hover:text-blue-900 mr-3" title="Editar">
                                                     <PencilIcon className="h-5 w-5 inline"/>
                                                 </button>
-                                                <button onClick={() => handleDeleteUser(user)} className="text-red-600 hover:text-red-900" title="Excluir">
+                                                <button onClick={() => handleDeleteUser(user)} className="text-red-600 hover:text-red-900" title="Excluir Definitivamente">
                                                     <TrashIcon className="h-5 w-5 inline"/>
                                                 </button>
                                             </td>

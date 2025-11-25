@@ -270,7 +270,19 @@ export const updateUserProfile = async (userId: string, updates: Partial<UserPro
     if (error) throw error;
 }
 
+// SUPER FUNÇÃO: Deletar usuário totalmente (Login + Perfil)
+export const deleteUserCompletely = async (email: string): Promise<void> => {
+    // Chama a função RPC (Remote Procedure Call) que criamos no banco
+    const { error } = await supabase.rpc('delete_user_by_email', { email_input: email });
+    
+    if (error) {
+        console.error("Erro ao deletar usuário via RPC:", error);
+        throw new Error("Falha ao excluir usuário. Verifique se o Script SQL de permissões foi rodado no Supabase.");
+    }
+}
+
 export const deleteUserProfile = async (userId: string): Promise<void> => {
+    // Mantido para compatibilidade, mas o ideal é usar deleteUserCompletely
     const { error } = await supabase.from('profiles').delete().eq('id', userId);
     if (error) throw error;
 }
@@ -279,8 +291,7 @@ export const createUserAccount = async (userData: {email: string, password: stri
     const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
     const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
     
-    // CRÍTICO: Criar um cliente isolado com armazenamento em memória.
-    // Isso impede que o novo login sobrescreva a sessão do Admin no LocalStorage do navegador.
+    // Cliente isolado para criação de Auth
     const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
         auth: {
             persistSession: false, 
@@ -294,7 +305,9 @@ export const createUserAccount = async (userData: {email: string, password: stri
         }
     });
 
-    // 1. Criar o usuário no sistema de Auth
+    let userId = '';
+
+    // 1. Tentar criar o usuário no Auth
     const { data, error } = await tempClient.auth.signUp({
         email: userData.email,
         password: userData.password,
@@ -305,19 +318,41 @@ export const createUserAccount = async (userData: {email: string, password: stri
         }
     });
 
-    if (error) throw error;
-    if (!data.user) throw new Error("Usuário criado mas ID não retornado.");
+    if (error) {
+        // Lógica de "Auto-Cura": Se o usuário já existe no Auth, tentamos apenas recriar o perfil.
+        // O erro comum é "User already registered"
+        if (error.message.includes('already registered')) {
+             console.warn("Usuário já existe no Auth, tentando recuperar/recriar perfil...");
+             // Tenta fazer login com a senha fornecida para pegar o ID (já que signUp falhou)
+             const { data: loginData, error: loginError } = await tempClient.auth.signInWithPassword({
+                 email: userData.email,
+                 password: userData.password
+             });
+             
+             if (loginError) {
+                 throw new Error("Este e-mail já existe com outra senha. Exclua-o completamente usando a Lixeira antes de recriar.");
+             }
+             
+             if (loginData.user) {
+                 userId = loginData.user.id;
+             }
+        } else {
+            throw error;
+        }
+    } else if (data.user) {
+        userId = data.user.id;
+    }
 
-    // Aguarda breve propagação
+    if (!userId) throw new Error("Falha crítica ao obter ID do usuário.");
+
+    // Aguarda propagação
     await new Promise(r => setTimeout(r, 1000));
 
-    // 2. Criar o perfil na tabela 'public.profiles' usando o cliente do ADMIN (supabase principal)
-    // O tempClient (novo usuário) pode não ter permissão de escrita ou estar pendente de confirmação de email.
-    // O Admin logado tem permissão (baseado nas políticas RLS).
+    // 2. Criar ou Atualizar (Upsert) o perfil
     const { error: profileError } = await supabase
         .from('profiles')
         .upsert({
-            id: data.user.id,
+            id: userId,
             email: userData.email,
             full_name: userData.name,
             role: userData.role,
@@ -326,8 +361,12 @@ export const createUserAccount = async (userData: {email: string, password: stri
 
     if (profileError) {
         console.error("Erro ao criar perfil:", profileError);
-        throw new Error(`Usuário Auth criado, mas falha no Perfil: ${profileError.message}`);
+        // Mensagem amigável para erro de RLS
+        if (profileError.message.includes('row-level security')) {
+            throw new Error("ERRO DE PERMISSÃO: Você precisa rodar o SCRIPT SQL de atualização no Supabase para liberar o cadastro.");
+        }
+        throw new Error(`Falha no Perfil: ${profileError.message}`);
     }
 
-    return data.user;
+    return { email: userData.email, password: userData.password };
 }

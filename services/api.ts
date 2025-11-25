@@ -279,14 +279,22 @@ export const createUserAccount = async (userData: {email: string, password: stri
     const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
     const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
     
+    // CRÍTICO: Criar um cliente isolado com armazenamento em memória.
+    // Isso impede que o novo login sobrescreva a sessão do Admin no LocalStorage do navegador.
     const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
         auth: {
             persistSession: false, 
             autoRefreshToken: false,
-            detectSessionInUrl: false
+            detectSessionInUrl: false,
+            storage: {
+                getItem: () => null,
+                setItem: () => {},
+                removeItem: () => {},
+            }
         }
     });
 
+    // 1. Criar o usuário no sistema de Auth
     const { data, error } = await tempClient.auth.signUp({
         email: userData.email,
         password: userData.password,
@@ -300,24 +308,25 @@ export const createUserAccount = async (userData: {email: string, password: stri
     if (error) throw error;
     if (!data.user) throw new Error("Usuário criado mas ID não retornado.");
 
+    // Aguarda breve propagação
     await new Promise(r => setTimeout(r, 1000));
 
+    // 2. Criar o perfil na tabela 'public.profiles' usando o cliente do ADMIN (supabase principal)
+    // O tempClient (novo usuário) pode não ter permissão de escrita ou estar pendente de confirmação de email.
+    // O Admin logado tem permissão (baseado nas políticas RLS).
     const { error: profileError } = await supabase
         .from('profiles')
-        .update({
-            role: userData.role,
-            assigned_project_ids: userData.projectIds
-        })
-        .eq('id', data.user.id);
-
-    if (profileError) {
-         await supabase.from('profiles').upsert({
+        .upsert({
             id: data.user.id,
             email: userData.email,
             full_name: userData.name,
             role: userData.role,
             assigned_project_ids: userData.projectIds
-        });
+        }, { onConflict: 'id' });
+
+    if (profileError) {
+        console.error("Erro ao criar perfil:", profileError);
+        throw new Error(`Usuário Auth criado, mas falha no Perfil: ${profileError.message}`);
     }
 
     return data.user;

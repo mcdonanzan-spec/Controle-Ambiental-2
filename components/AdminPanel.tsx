@@ -177,6 +177,12 @@ Por favor, acesse e realize suas inspeções.
                     setLoading(false);
                     return;
                 }
+                if (userPass.length < 6) {
+                    alert("A senha deve ter no mínimo 6 caracteres.");
+                    setLoading(false);
+                    return;
+                }
+
                 await createUserAccount({
                     email: userEmail,
                     password: userPass,

@@ -307,7 +307,7 @@ const App: React.FC = () => {
 
     const navItems: { view: View; label: string; icon: React.FC<React.SVGProps<SVGSVGElement>>; roles: string[] }[] = [
       { view: 'SITES_LIST', label: 'Obras', icon: BuildingOfficeIcon, roles: ['admin', 'executive', 'manager', 'assistant'] },
-      { view: 'MANAGEMENT_DASHBOARD', label: 'KPIs', icon: ChartPieIcon, roles: ['admin', 'executive'] },
+      { view: 'MANAGEMENT_DASHBOARD', label: 'Gerencial', icon: ChartPieIcon, roles: ['admin', 'executive'] },
       { view: 'ADMIN_PANEL', label: 'Admin', icon: WrenchScrewdriverIcon, roles: ['admin'] },
     ];
     

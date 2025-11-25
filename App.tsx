@@ -108,14 +108,10 @@ const App: React.FC = () => {
         return;
     }
     
-    // Criação de draft agora é assíncrona pois busca histórico
     try {
         setLoading(true);
         const newTemplate = await createReportDraft(project.id);
         
-        // Convertemos para o tipo esperado, adicionando um ID temporário se necessário para o state
-        // Mas o ReportForm espera `existingReport` ou gera novo.
-        // Aqui vamos passar o template como "editingReport" para pré-carregar os dados (incluindo pendências)
         setEditingReport({ ...newTemplate, id: '', score: 0, evaluation: '', categoryScores: {} } as Report);
         
         setSelectedProject(project);
@@ -147,8 +143,10 @@ const App: React.FC = () => {
     setView('REPORT_FORM');
   }
 
-  const handleSaveReport = (status: 'Draft' | 'Completed') => {
-    refreshData();
+  const handleSaveReport = async (status: 'Draft' | 'Completed') => {
+    // Aguarda atualização dos dados antes de renderizar a lista novamente
+    await refreshData();
+    
     if (status === 'Draft') {
         setToastMessage('Rascunho salvo com sucesso!');
     } else {
@@ -194,7 +192,8 @@ const App: React.FC = () => {
   const SitesList: React.FC = () => {
     const data = filteredProjects.map(project => {
       const projectReports = filteredReports.filter(r => r.projectId === project.id);
-      const lastReport = projectReports.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      // FIX: Cria uma cópia do array com [...projectReports] antes de ordenar para evitar mutação do estado e tela branca
+      const lastReport = [...projectReports].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
       const score = lastReport ? lastReport.score : null;
       const pendingActions = projectReports.flatMap(r => r.results).filter(res => res.status === 'Não Conforme' && (!res.actionPlan || !res.actionPlan.actions)).length;
       return { project, score, pendingActions };

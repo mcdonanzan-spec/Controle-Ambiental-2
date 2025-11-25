@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Project, Report, InspectionStatus } from '../types';
 import { CHECKLIST_DEFINITIONS } from '../constants';
@@ -67,7 +68,8 @@ const ScoreRing: React.FC<{ score: number }> = ({ score }) => {
 
 const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, reports, onViewReport, onNewReport, onEditReportCategory, onBack }) => {
 
-  const latestReport = reports.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+  // FIX: Usa spread operator [...reports] para criar cópia antes de ordenar, evitando mutação do estado original
+  const latestReport = [...reports].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
   const isLatestReportCompleted = latestReport?.status === 'Completed';
 
   const getCategoryStatus = (categoryId: string) => {

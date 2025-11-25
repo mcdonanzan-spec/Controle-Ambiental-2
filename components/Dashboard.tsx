@@ -69,7 +69,8 @@ const TrendChart: React.FC<{ reports: Report[], projects: Project[] }> = ({ repo
 const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProject, onNavigateToSites, onNavigateToPendingActions }) => {
   const data = projects.map(project => {
     const projectReports = reports.filter(r => r.projectId === project.id);
-    const lastReport = projectReports.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+    // FIX: Usa spread operator [...projectReports] para evitar crash por mutação de estado
+    const lastReport = [...projectReports].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
     const score = lastReport ? lastReport.score : 0;
     const pendingActions = projectReports.flatMap(r => r.results).filter(res => res.status === InspectionStatus.NC && (!res.actionPlan || !res.actionPlan.actions)).length;
     return {

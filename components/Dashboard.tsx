@@ -67,12 +67,28 @@ const TrendChart: React.FC<{ reports: Report[], projects: Project[] }> = ({ repo
 
 
 const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProject, onNavigateToSites, onNavigateToPendingActions }) => {
+  
+  // 1. Identificar apenas o relatório MAIS RECENTE de cada obra para o "Retrato Atual"
+  const latestReports = useMemo(() => {
+      return projects.map(project => {
+          const projectReports = reports.filter(r => r.projectId === project.id);
+          if (projectReports.length === 0) return null;
+          // Ordena por data decrescente e pega o primeiro
+          return [...projectReports].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      }).filter((r): r is Report => r !== null);
+  }, [projects, reports]);
+
   const data = projects.map(project => {
-    const projectReports = reports.filter(r => r.projectId === project.id);
-    // FIX: Usa spread operator [...projectReports] para evitar crash por mutação de estado
-    const lastReport = [...projectReports].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+    // Usa a lista pré-calculada para consistência
+    const lastReport = latestReports.find(r => r.projectId === project.id);
+    
     const score = lastReport ? lastReport.score : 0;
-    const pendingActions = projectReports.flatMap(r => r.results).filter(res => res.status === InspectionStatus.NC && (!res.actionPlan || !res.actionPlan.actions)).length;
+    
+    // Contagem de pendências baseada APENAS no último relatório vigente
+    const pendingActions = lastReport 
+        ? lastReport.results.filter(res => res.status === InspectionStatus.NC && (!res.actionPlan || !res.actionPlan.actions)).length 
+        : 0;
+
     return {
       name: project.name,
       'Pontuação (%)': score,
@@ -83,7 +99,8 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
 
   const totalPendingActions = data.reduce((sum, item) => sum + item.pendingActions, 0);
 
-  const overallStatus = reports.flatMap(r => r.results)
+  // Status Geral baseia-se APENAS nos relatórios mais recentes (evita duplicar itens de relatórios antigos)
+  const overallStatus = latestReports.flatMap(r => r.results)
     .filter(res => res.status !== null && res.status !== InspectionStatus.NA);
 
   const statusCounts = {
@@ -112,14 +129,14 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
         <div onClick={onNavigateToSites} className="bg-white p-6 rounded-lg shadow-md flex items-center space-x-4 cursor-pointer hover:shadow-lg transition-shadow">
             <DocumentChartBarIcon className="h-10 w-10 text-green-500"/>
             <div>
-                <p className="text-sm text-gray-500">Relatórios Enviados</p>
+                <p className="text-sm text-gray-500">Relatórios Totais</p>
                 <p className="text-2xl font-bold text-gray-800">{reports.length}</p>
             </div>
         </div>
         <div onClick={onNavigateToPendingActions} className="bg-white p-6 rounded-lg shadow-md flex items-center space-x-4 cursor-pointer hover:shadow-lg transition-shadow">
             <ExclamationTriangleIcon className="h-10 w-10 text-red-500"/>
             <div>
-                <p className="text-sm text-gray-500">Ações Pendentes</p>
+                <p className="text-sm text-gray-500">Ações Pendentes (Atuais)</p>
                 <p className="text-2xl font-bold text-gray-800">{totalPendingActions}</p>
             </div>
         </div>
@@ -127,7 +144,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">Pontuação de Conformidade por Obra</h2>
+          <h2 className="text-lg font-semibold text-gray-700 mb-4">Pontuação Atual por Obra</h2>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={data} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -135,7 +152,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
               <YAxis />
               <Tooltip />
               <Legend />
-              {/* FIX: Explicitly type `d` as `any` to work around a type inference issue with recharts, allowing access to the custom `project` property from the data payload. */}
+              {/* FIX: Explicitly type `d` as `any` to work around a type inference issue with recharts */}
               <Bar dataKey="Pontuação (%)" fill="#3B82F6" onClick={(d: any) => onSelectProject(d.project)} className="cursor-pointer">
                  <LabelList 
                     dataKey="Pontuação (%)" 
@@ -149,7 +166,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
         </div>
 
         <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">Status Geral dos Itens</h2>
+          <h2 className="text-lg font-semibold text-gray-700 mb-4">Status Geral (Obras Ativas)</h2>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie data={pieData} cx="50%" cy="50%" labelLine={false} outerRadius={100} fill="#8884d8" dataKey="value" nameKey="name" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
@@ -163,7 +180,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
       </div>
       
       <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">Tendência de Conformidade Mensal</h2>
+          <h2 className="text-lg font-semibold text-gray-700 mb-4">Tendência de Conformidade Mensal (Histórico)</h2>
           <TrendChart reports={reports} projects={projects} />
       </div>
     </div>

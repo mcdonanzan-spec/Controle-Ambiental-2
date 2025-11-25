@@ -173,7 +173,10 @@ export const createReportDraft = async (projectId: string): Promise<Omit<Report,
         const prevResult = previousReport.results.find(res => res.itemId === item.id);
         if (prevResult && prevResult.status === InspectionStatus.NC) {
             // Se estava NC, trazemos o histórico para o novo relatório
-            preFilledComment = `⚠️ PENDÊNCIA ANTERIOR (${new Date(previousReport.date).toLocaleDateString()}): ${prevResult.comment || 'Sem observações'}`;
+            // Limpa o comentário anterior para evitar "PENDÊNCIA ANTERIOR: PENDÊNCIA ANTERIOR: ..."
+            const cleanComment = prevResult.comment.replace(/⚠️ PENDÊNCIA ANTERIOR.*?: /g, '').trim();
+            preFilledComment = `⚠️ PENDÊNCIA ANTERIOR (${new Date(previousReport.date).toLocaleDateString()}): ${cleanComment || 'Sem observações'}`;
+            
             if (prevResult.actionPlan) {
                 preFilledActionPlan = { ...prevResult.actionPlan };
             }

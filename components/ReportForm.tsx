@@ -137,6 +137,12 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
       if (!reportData.results) return 0;
       return reportData.results.filter(r => r.status === null).length;
   }, [reportData.results]);
+  
+  // Validação: Se é NC, TEM QUE TER PLANO DE AÇÃO PREENCHIDO
+  const areActionPlansValid = useMemo(() => {
+      const ncItems = reportData.results.filter(r => r.status === InspectionStatus.NC);
+      return ncItems.every(r => r.actionPlan && r.actionPlan.actions && r.actionPlan.responsible && r.actionPlan.deadline);
+  }, [reportData.results]);
 
   const handleResultChange = (itemId: string, newResult: Partial<InspectionItemResult>) => {
     if (isReadOnly) return;
@@ -193,6 +199,14 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
             alert(`Atenção: Existem ${uncheckedCount} itens não verificados. Preencha todo o checklist antes de concluir.`);
             return;
         }
+        
+        // Validação de Plano de Ação
+        if (!areActionPlansValid) {
+            const invalidCount = reportData.results.filter(r => r.status === InspectionStatus.NC && (!r.actionPlan?.actions || !r.actionPlan?.responsible || !r.actionPlan?.deadline)).length;
+            alert(`ERRO DE AUDITORIA: Existem ${invalidCount} itens "Não Conformes" sem Plano de Ação completo. \n\nPara cada item NC, é obrigatório preencher: Ação, Responsável e Prazo Limite.`);
+            return;
+        }
+
         if (!reportData.signatures.inspector || !reportData.signatures.manager) {
             alert("Ambas as assinaturas Gov.br são necessárias para concluir o relatório.");
             return;
@@ -281,13 +295,16 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                     <PhotoUploader photos={result.photos} onAddPhoto={(photo) => handleAddPhoto(item.id, photo)} onRemovePhoto={(photoId) => handleRemovePhoto(item.id, photoId)} disabled={isReadOnly} />
                 </div>
                  <div>
-                    <h4 className="font-semibold text-red-800 text-sm">Plano de Ação Corretiva</h4>
+                    <h4 className="font-semibold text-red-800 text-sm flex items-center">
+                        Plano de Ação Corretiva
+                        <span className="ml-2 text-[10px] bg-red-200 text-red-800 px-2 py-0.5 rounded-full uppercase">Obrigatório</span>
+                    </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mt-2">
-                        <input type="text" placeholder="Ações / Provisões" value={result.actionPlan?.actions} onChange={(e) => handleActionPlanChange(item.id, {actions: e.target.value})} disabled={isReadOnly} className="p-2 border rounded-md text-sm disabled:bg-gray-100"/>
-                        <input type="text" placeholder="Responsável" value={result.actionPlan?.responsible} onChange={(e) => handleActionPlanChange(item.id, {responsible: e.target.value})} disabled={isReadOnly} className="p-2 border rounded-md text-sm disabled:bg-gray-100"/>
-                        <div>
-                             <label className="text-[10px] text-gray-500 uppercase font-bold ml-1">Prazo Limite (Deadline)</label>
-                             <input type="date" placeholder="Prazo Limite" value={result.actionPlan?.deadline} onChange={(e) => handleActionPlanChange(item.id, {deadline: e.target.value})} disabled={isReadOnly} className="w-full p-2 border rounded-md text-sm disabled:bg-gray-100"/>
+                        <input type="text" placeholder="O que será feito? (Ação)" value={result.actionPlan?.actions} onChange={(e) => handleActionPlanChange(item.id, {actions: e.target.value})} disabled={isReadOnly} className="p-2 border rounded-md text-sm disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500"/>
+                        <input type="text" placeholder="Responsável" value={result.actionPlan?.responsible} onChange={(e) => handleActionPlanChange(item.id, {responsible: e.target.value})} disabled={isReadOnly} className="p-2 border rounded-md text-sm disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500"/>
+                        <div className="md:col-span-2">
+                             <label className="text-[10px] text-gray-700 uppercase font-bold ml-1">Prazo Limite (Deadline)</label>
+                             <input type="date" placeholder="Prazo Limite" value={result.actionPlan?.deadline} onChange={(e) => handleActionPlanChange(item.id, {deadline: e.target.value})} disabled={isReadOnly} className="w-full p-2 border rounded-md text-sm disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500"/>
                         </div>
                     </div>
                 </div>
@@ -325,12 +342,24 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
         <div className="p-4 sm:p-6 min-h-[calc(100vh-200px)]">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">{existingReport ? 'Editar Relatório' : 'Novo Relatório de Inspeção'}</h2>
             
+            {/* Aviso de Itens Incompletos */}
             {!isAllItemsAnswered && !isReadOnly && (
                 <div className="mb-4 bg-orange-50 border-l-4 border-orange-500 text-orange-700 p-4 shadow-sm rounded-r-md flex items-start">
                     <ExclamationTriangleIcon className="h-6 w-6 mr-2 flex-shrink-0"/>
                     <div>
-                        <p className="font-bold">Relatório Incompleto</p>
+                        <p className="font-bold">Checklist Incompleto</p>
                         <p className="text-sm">Ainda existem <strong>{uncheckedCount}</strong> itens sem verificação. A assinatura digital e o envio só estarão disponíveis após preencher todo o checklist.</p>
+                    </div>
+                </div>
+            )}
+            
+            {/* Aviso de Planos de Ação Inválidos */}
+            {isAllItemsAnswered && !areActionPlansValid && !isReadOnly && (
+                <div className="mb-4 bg-red-50 border-l-4 border-red-500 text-red-700 p-4 shadow-sm rounded-r-md flex items-start">
+                    <ExclamationTriangleIcon className="h-6 w-6 mr-2 flex-shrink-0"/>
+                    <div>
+                        <p className="font-bold">Pendência de Auditoria</p>
+                        <p className="text-sm">Você marcou itens como "Não Conforme" mas não definiu o Plano de Ação completo (Ação, Responsável e Prazo). Isso é obrigatório para concluir.</p>
                     </div>
                 </div>
             )}
@@ -360,14 +389,17 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                 <div id="signatures" className="animate-fade-in">
                     <h3 className="text-xl font-semibold text-gray-700 mb-4 bg-gray-100 p-3 rounded-lg">Assinaturas Eletrônicas</h3>
                     
-                    {!isAllItemsAnswered && !isReadOnly ? (
+                    {(!isAllItemsAnswered || !areActionPlansValid) && !isReadOnly ? (
                         <div className="text-center py-10 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl">
                             <ExclamationTriangleIcon className="h-12 w-12 text-gray-300 mx-auto mb-3"/>
                             <h4 className="text-lg font-bold text-gray-500">Assinatura Bloqueada</h4>
                             <p className="text-gray-400 text-sm max-w-md mx-auto mt-2">
-                                Para garantir a integridade da auditoria, você só poderá assinar digitalmente após responder todos os itens do checklist (Conforme, Não Conforme ou N/A).
+                                Para garantir a integridade da auditoria, a assinatura digital só é liberada quando:
+                                <ul className="list-disc text-left ml-8 mt-2">
+                                    <li>Todos os itens foram verificados.</li>
+                                    <li>Todas as "Não Conformidades" possuem Plano de Ação completo.</li>
+                                </ul>
                             </p>
-                            <p className="text-red-500 font-bold mt-4">Restam {uncheckedCount} itens pendentes.</p>
                         </div>
                     ) : (
                         <>
@@ -449,8 +481,8 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
             <PaperAirplaneIcon className="h-5 w-5 mr-2"/>
             {saving ? 'Salvando...' : 'Salvar Rascunho'}
         </button>
-        {/* Desabilitado se não estiver tudo respondido */}
-        <button onClick={() => handleSubmit('Completed')} disabled={isReadOnly || saving || !isAllItemsAnswered} className="w-full sm:w-auto flex justify-center items-center px-4 py-2 text-white bg-green-600 rounded-md hover:bg-green-700 font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed">
+        {/* Desabilitado se não estiver tudo respondido ou se NC não tiver plano de ação */}
+        <button onClick={() => handleSubmit('Completed')} disabled={isReadOnly || saving || !isAllItemsAnswered || !areActionPlansValid} className="w-full sm:w-auto flex justify-center items-center px-4 py-2 text-white bg-green-600 rounded-md hover:bg-green-700 font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed">
             <CheckIcon className="h-5 w-5 mr-2"/>
             {saving ? 'Enviando...' : 'Concluir e Enviar'}
         </button>

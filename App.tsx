@@ -178,13 +178,13 @@ const App: React.FC = () => {
     return (
     <header className="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-40 h-16">
       <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setView('SITES_LIST')}>
-        <LogoIcon className="h-10 w-auto" />
-        <div className="hidden sm:block">
-            <h1 className="text-xl font-bold text-gray-800">Controle Ambiental</h1>
-            {userProfile && <p className="text-xs text-gray-500">Olá, {userProfile.full_name}</p>}
+        <LogoIcon className="h-10 w-auto flex-shrink-0" />
+        <div className="flex flex-col justify-center">
+            <h1 className="text-lg md:text-xl font-bold text-gray-800 uppercase leading-tight tracking-tight">CONTROLE AMBIENTAL</h1>
+            {userProfile && <p className="text-xs text-gray-500 hidden sm:block">Olá, {userProfile.full_name}</p>}
         </div>
       </div>
-      <div className="hidden md:block text-md font-semibold text-gray-700 truncate max-w-xs">
+      <div className="hidden md:block text-md font-semibold text-gray-700 truncate max-w-xs uppercase">
         {title}
       </div>
       <button onClick={handleLogout} className="text-sm text-red-600 font-semibold hover:text-red-800 border border-red-200 px-3 py-1 rounded hover:bg-red-50">Sair</button>

@@ -96,10 +96,18 @@ const calculateScores = (results: InspectionItemResult[]) => {
 }
 
 export const saveReport = async (reportData: Omit<Report, 'id' | 'score' | 'evaluation' | 'categoryScores'> & { id?: string }): Promise<Report | null> => {
+  // Gera um ID se não existir, para garantir a chave primária
+  if (!reportData.id) {
+     reportData.id = generateUUID();
+  }
+
   const { score, evaluation, categoryScores } = calculateScores(reportData.results);
   const fullContent = { ...reportData, score, evaluation, categoryScores };
   
-  if (reportData.id) {
+  // Verifica se o relatório já existe no banco
+  const { data: existing } = await supabase.from('reports').select('id').eq('id', reportData.id).single();
+
+  if (existing) {
     const { data, error } = await supabase
       .from('reports')
       .update({
@@ -115,6 +123,7 @@ export const saveReport = async (reportData: Omit<Report, 'id' | 'score' | 'eval
     const { data, error } = await supabase
       .from('reports')
       .insert([{
+        id: reportData.id,
         project_id: reportData.projectId,
         content: fullContent
       }])

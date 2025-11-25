@@ -127,15 +127,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ projects, onProjectCreated }) =
         }
     };
 
-    const getRoleBadge = (role: string) => {
-        switch(role) {
-            case 'admin': return <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-bold">Administrador</span>;
-            case 'executive': return <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs font-bold">Diretoria</span>;
-            case 'manager': return <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">Engenheiro</span>;
-            default: return <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs font-bold">Assistente</span>;
-        }
-    }
-
     return (
         <div className="animate-fade-in space-y-6 pb-20">
             <h1 className="text-3xl font-bold text-gray-800">Painel Administrativo</h1>
@@ -225,6 +216,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ projects, onProjectCreated }) =
                                 </div>
                             </div>
                             
+                            {/* Seleção de Obras: Mostrar para todos exceto Admin que vê tudo. Diretoria vê tudo, mas se quiser restringir, pode. Por padrão admin/exec vê tudo no app, mas podemos deixar selecionar se a lógica mudar no futuro. */}
                             {newUserRole !== 'admin' && newUserRole !== 'executive' && (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Vincular Obras (Acesso)</label>

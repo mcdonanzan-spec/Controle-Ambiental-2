@@ -195,7 +195,8 @@ const App: React.FC = () => {
       // FIX: Cria uma cópia do array com [...projectReports] antes de ordenar para evitar mutação do estado e tela branca
       const lastReport = [...projectReports].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
       const score = lastReport ? lastReport.score : null;
-      const pendingActions = projectReports.flatMap(r => r.results).filter(res => res.status === 'Não Conforme' && (!res.actionPlan || !res.actionPlan.actions)).length;
+      // UPDATED: Count all NCs as pending actions, not just those without plans
+      const pendingActions = projectReports.flatMap(r => r.results).filter(res => res.status === 'Não Conforme').length;
       return { project, score, pendingActions };
     });
     
@@ -238,7 +239,7 @@ const App: React.FC = () => {
                 </div>
                 <div className={`${pendingActions > 0 ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
                     <span className="font-semibold">{pendingActions}</span>
-                    <span> pendências</span>
+                    <span> Não Conformidades</span>
                 </div>
             </div>
           </div>

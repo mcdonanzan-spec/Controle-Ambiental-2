@@ -152,8 +152,10 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
   const data = projects.map(project => {
     const lastReport = latestReports.find(r => r.projectId === project.id);
     const score = lastReport ? lastReport.score : 0;
+    
+    // ATUALIZAÇÃO: Contamos TUDO que é NC, independente de ter plano de ação.
     const pendingActions = lastReport 
-        ? lastReport.results.filter(res => res.status === InspectionStatus.NC && (!res.actionPlan || !res.actionPlan.actions)).length 
+        ? lastReport.results.filter(res => res.status === InspectionStatus.NC).length 
         : 0;
 
     return {
@@ -242,12 +244,12 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                     <ExclamationTriangleIcon className={`h-8 w-8 ${totalPendingActions > 0 ? 'text-red-600' : 'text-gray-400'}`}/>
                 </div>
                 <div>
-                    <p className="text-sm font-medium text-gray-500">Pendências Críticas</p>
+                    <p className="text-sm font-medium text-gray-500">Não Conformidades</p>
                     <p className="text-2xl font-bold text-gray-800">{totalPendingActions}</p>
                 </div>
             </div>
             {totalPendingActions > 0 && (
-                <div className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded font-semibold group-hover:bg-red-100 animate-pulse">Agir Agora</div>
+                <div className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded font-semibold group-hover:bg-red-100 animate-pulse">Ver Detalhes</div>
             )}
         </div>
       </div>

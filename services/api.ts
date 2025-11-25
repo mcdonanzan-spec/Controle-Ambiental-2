@@ -41,6 +41,29 @@ export const createProject = async (name: string, location: string): Promise<Pro
   return data;
 }
 
+export const updateProject = async (id: string, updates: Partial<Project>): Promise<void> => {
+    const { error } = await supabase.from('projects').update(updates).eq('id', id);
+    if (error) throw error;
+}
+
+export const deleteProject = async (id: string): Promise<void> => {
+    // 1. Verificação de Integridade: Checar se existem relatórios para esta obra
+    const { count, error: checkError } = await supabase
+        .from('reports')
+        .select('*', { count: 'exact', head: true })
+        .eq('project_id', id);
+
+    if (checkError) throw checkError;
+
+    if (count && count > 0) {
+        throw new Error(`Não é possível excluir esta obra pois existem ${count} relatórios vinculados a ela. Para manter o histórico, a exclusão é bloqueada.`);
+    }
+
+    // 2. Se não houver relatórios, prosseguir com a exclusão
+    const { error } = await supabase.from('projects').delete().eq('id', id);
+    if (error) throw error;
+}
+
 // --- Reports ---
 export const getReports = async (): Promise<Report[]> => {
   const { data, error } = await supabase.from('reports').select('*');
@@ -240,6 +263,15 @@ export const getAllProfiles = async (): Promise<UserProfile[]> => {
 
 export const updateUserProfile = async (userId: string, updates: Partial<UserProfile>): Promise<void> => {
     const { error } = await supabase.from('profiles').update(updates).eq('id', userId);
+    if (error) throw error;
+}
+
+export const deleteUserProfile = async (userId: string): Promise<void> => {
+    // Nota: Excluir o Auth User exige Service Role Key (Backend).
+    // No Frontend com Supabase Client padrão, só podemos excluir os dados da tabela 'profiles' que o usuário tem acesso.
+    // Isso efetivamente remove o usuário do sistema visualmente, embora o login ainda possa existir no Auth provider até ser limpo manualmente no painel do Supabase.
+    
+    const { error } = await supabase.from('profiles').delete().eq('id', userId);
     if (error) throw error;
 }
 

@@ -186,6 +186,14 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
   
   const COLORS = ['#10B981', '#EF4444'];
 
+  const handlePieClick = (entry: any) => {
+    if (entry.name === 'Não Conforme') {
+        onNavigateToPendingActions();
+    } else {
+        onNavigateToSites();
+    }
+  };
+
   return (
     <div className="space-y-8 animate-fade-in pb-10">
       <div className="flex justify-between items-end">
@@ -290,7 +298,10 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
         <div className="bg-white p-6 rounded-lg shadow-md border border-gray-100 flex flex-col justify-between">
           <div>
             <h2 className="text-lg font-bold text-gray-700 mb-2">Aderência aos Processos</h2>
-            <p className="text-xs text-gray-500 mb-6">Proporção de itens conformes em todas as obras ativas.</p>
+            <div className="flex justify-between items-start">
+                 <p className="text-xs text-gray-500 mb-6">Proporção de itens conformes em todas as obras ativas.</p>
+                 <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 font-semibold whitespace-nowrap">Clique na fatia</span>
+            </div>
           </div>
           
           {overallStatus.length > 0 ? (
@@ -306,6 +317,8 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                         paddingAngle={5}
                         dataKey="value" 
                         stroke="none"
+                        onClick={handlePieClick}
+                        className="cursor-pointer hover:opacity-80 transition-opacity"
                     >
                         {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                     </Pie>

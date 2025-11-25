@@ -370,3 +370,9 @@ export const createUserAccount = async (userData: {email: string, password: stri
 
     return { email: userData.email, password: userData.password };
 }
+
+// --- Auth ---
+export const changeOwnPassword = async (newPassword: string): Promise<void> => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+}

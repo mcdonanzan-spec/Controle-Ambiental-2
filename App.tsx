@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Project, Report, UserProfile } from './types';
-import { getProjects, getReports, createReportDraft } from './services/api';
+import { getProjects, getReports, createReportDraft, changeOwnPassword } from './services/api';
 import { supabase } from './services/supabaseClient';
 import Dashboard from './components/Dashboard';
 import ProjectDashboard from './components/ProjectDashboard';
@@ -11,7 +11,7 @@ import PendingActions from './components/PendingActions';
 import AuthScreen from './components/AuthScreen';
 import AdminPanel from './components/AdminPanel';
 import Toast from './components/Toast';
-import { LogoIcon, BuildingOfficeIcon, ChartPieIcon, ArrowLeftIcon, WrenchScrewdriverIcon, EyeIcon, PencilIcon } from './components/icons';
+import { LogoIcon, BuildingOfficeIcon, ChartPieIcon, ArrowLeftIcon, WrenchScrewdriverIcon, EyeIcon, PencilIcon, KeyIcon, XMarkIcon } from './components/icons';
 
 type View = 'SITES_LIST' | 'PROJECT_DASHBOARD' | 'REPORT_FORM' | 'REPORT_VIEW' | 'MANAGEMENT_DASHBOARD' | 'PENDING_ACTIONS' | 'ADMIN_PANEL';
 
@@ -27,6 +27,12 @@ const App: React.FC = () => {
   const [initialCategoryId, setInitialCategoryId] = useState<string | undefined>(undefined);
   const [toastMessage, setToastMessage] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  
+  // States para Alteração de Senha
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -86,6 +92,31 @@ const App: React.FC = () => {
   const handleLogout = async () => {
       await supabase.auth.signOut();
       setView('SITES_LIST');
+  }
+  
+  const handleChangePassword = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (newPassword.length < 6) {
+          alert("A senha deve ter no mínimo 6 caracteres.");
+          return;
+      }
+      if (newPassword !== confirmPassword) {
+          alert("As senhas não coincidem.");
+          return;
+      }
+      
+      setIsChangingPassword(true);
+      try {
+          await changeOwnPassword(newPassword);
+          setToastMessage("Senha alterada com sucesso!");
+          setIsChangePasswordOpen(false);
+          setNewPassword('');
+          setConfirmPassword('');
+      } catch (error: any) {
+          alert("Erro ao alterar senha: " + error.message);
+      } finally {
+          setIsChangingPassword(false);
+      }
   }
 
   const handleSelectProject = (project: Project) => {
@@ -184,7 +215,16 @@ const App: React.FC = () => {
       <div className="hidden md:block text-md font-semibold text-gray-700 truncate max-w-xs uppercase">
         {title}
       </div>
-      <button onClick={handleLogout} className="text-sm text-red-600 font-semibold hover:text-red-800 border border-red-200 px-3 py-1 rounded hover:bg-red-50">Sair</button>
+      <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setIsChangePasswordOpen(true)}
+            className="text-gray-500 hover:text-blue-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
+            title="Alterar Senha"
+          >
+              <KeyIcon className="h-5 w-5"/>
+          </button>
+          <button onClick={handleLogout} className="text-sm text-red-600 font-semibold hover:text-red-800 border border-red-200 px-3 py-1 rounded hover:bg-red-50">Sair</button>
+      </div>
     </header>
   )};
 
@@ -362,6 +402,63 @@ const App: React.FC = () => {
         {renderContent()}
       </main>
       <BottomNav/>
+      
+      {/* MODAL DE ALTERAÇÃO DE SENHA */}
+      {isChangePasswordOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4">
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+                  <div className="flex justify-between items-center p-4 border-b">
+                      <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                          <KeyIcon className="h-5 w-5 mr-2 text-blue-600"/>
+                          Alterar Minha Senha
+                      </h3>
+                      <button onClick={() => setIsChangePasswordOpen(false)} className="text-gray-400 hover:text-gray-600">
+                          <XMarkIcon className="h-6 w-6"/>
+                      </button>
+                  </div>
+                  <form onSubmit={handleChangePassword} className="p-6 space-y-4">
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700">Nova Senha</label>
+                          <input 
+                              type="password" 
+                              value={newPassword} 
+                              onChange={e => setNewPassword(e.target.value)}
+                              className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
+                              placeholder="Mínimo 6 caracteres"
+                              required 
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium text-gray-700">Confirmar Nova Senha</label>
+                          <input 
+                              type="password" 
+                              value={confirmPassword} 
+                              onChange={e => setConfirmPassword(e.target.value)}
+                              className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
+                              placeholder="Repita a nova senha"
+                              required 
+                          />
+                      </div>
+                      <div className="pt-2 flex justify-end space-x-3">
+                          <button 
+                              type="button" 
+                              onClick={() => setIsChangePasswordOpen(false)} 
+                              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 font-medium"
+                          >
+                              Cancelar
+                          </button>
+                          <button 
+                              type="submit" 
+                              disabled={isChangingPassword} 
+                              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-bold disabled:opacity-50"
+                          >
+                              {isChangingPassword ? 'Salvando...' : 'Salvar Nova Senha'}
+                          </button>
+                      </div>
+                  </form>
+              </div>
+          </div>
+      )}
     </div>
   );
 };

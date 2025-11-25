@@ -2,7 +2,7 @@
 import React from 'react';
 import { Project, Report, InspectionStatus } from '../types';
 import { CHECKLIST_DEFINITIONS } from '../constants';
-import { ArrowLeftIcon, PlusIcon, CubeTransparentIcon, FunnelIcon, WrenchScrewdriverIcon, BeakerIcon, FireIcon, DocumentCheckIcon, ClockIcon, CheckCircleIcon } from './icons';
+import { ArrowLeftIcon, PlusIcon, CubeTransparentIcon, FunnelIcon, WrenchScrewdriverIcon, BeakerIcon, FireIcon, DocumentCheckIcon, ClockIcon, CheckCircleIcon, EyeIcon } from './icons';
 
 interface ProjectDashboardProps {
   project: Project;
@@ -11,6 +11,7 @@ interface ProjectDashboardProps {
   onNewReport: () => void;
   onEditReportCategory: (report: Report, categoryId: string) => void;
   onBack: () => void;
+  readOnly?: boolean;
 }
 
 const categoryIcons: { [key: string]: React.FC<React.SVGProps<SVGSVGElement>> } = {
@@ -66,7 +67,7 @@ const ScoreRing: React.FC<{ score: number }> = ({ score }) => {
     );
 };
 
-const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, reports, onViewReport, onNewReport, onEditReportCategory, onBack }) => {
+const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, reports, onViewReport, onNewReport, onEditReportCategory, onBack, readOnly = false }) => {
 
   // FIX: Usa spread operator [...reports] para criar cópia antes de ordenar, evitando mutação do estado original
   const latestReport = [...reports].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
@@ -95,19 +96,29 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, reports, o
                 <h1 className="text-3xl font-bold text-gray-800">{project.name}</h1>
                 <p className="text-md text-gray-500">{project.location}</p>
             </div>
-            <button
-              onClick={() => (latestReport && !isLatestReportCompleted) ? onEditReportCategory(latestReport, 'massa') : onNewReport()}
-              className="flex items-center bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-blue-700 transition duration-300"
-            >
-              <PlusIcon className="h-5 w-5 mr-2" />
-              {(latestReport && !isLatestReportCompleted) ? 'Continuar Inspeção' : 'Nova Inspeção'}
-            </button>
+            
+            {!readOnly && (
+                <button
+                onClick={() => (latestReport && !isLatestReportCompleted) ? onEditReportCategory(latestReport, 'massa') : onNewReport()}
+                className="flex items-center bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-blue-700 transition duration-300"
+                >
+                <PlusIcon className="h-5 w-5 mr-2" />
+                {(latestReport && !isLatestReportCompleted) ? 'Continuar Inspeção' : 'Nova Inspeção'}
+                </button>
+            )}
         </div>
+        
+        {readOnly && (
+            <div className="bg-gray-100 border-l-4 border-gray-400 p-3 rounded-r text-gray-700 text-sm flex items-center">
+                <EyeIcon className="h-5 w-5 mr-2" />
+                <span><strong>Modo Leitura:</strong> Você está visualizando esta obra para consulta. Apenas usuários vinculados podem realizar inspeções.</span>
+            </div>
+        )}
       
         { !latestReport ? (
             <div className="text-center py-16 bg-white rounded-lg shadow-md">
                 <p className="text-gray-600 font-semibold text-lg">Nenhum relatório encontrado para esta obra.</p>
-                <p className="text-gray-400 text-sm mt-2">Clique em "Nova Inspeção" para começar.</p>
+                {!readOnly && <p className="text-gray-400 text-sm mt-2">Clique em "Nova Inspeção" para começar.</p>}
             </div>
         ) : (
             <>
@@ -129,8 +140,18 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, reports, o
                         const score = latestReport.categoryScores[category.id] ?? 0;
                         const status = getCategoryStatus(category.id);
                         const Icon = categoryIcons[category.id];
+                        
+                        // Se for ReadOnly, o clique sempre leva para a visualização, se editável, leva para edição se não estiver completo
+                        const handleClick = () => {
+                             if (readOnly || isLatestReportCompleted) {
+                                 onViewReport(latestReport);
+                             } else {
+                                 onEditReportCategory(latestReport, category.id);
+                             }
+                        }
+
                         return (
-                            <div key={category.id} onClick={() => onEditReportCategory(latestReport, category.id)} className="bg-white p-5 rounded-lg shadow-md hover:shadow-xl hover:scale-[1.02] transition-all cursor-pointer">
+                            <div key={category.id} onClick={handleClick} className="bg-white p-5 rounded-lg shadow-md hover:shadow-xl hover:scale-[1.02] transition-all cursor-pointer">
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
                                         {Icon && <Icon className="h-8 w-8 text-gray-400 mb-2"/>}

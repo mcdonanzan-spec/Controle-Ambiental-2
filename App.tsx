@@ -11,7 +11,7 @@ import PendingActions from './components/PendingActions';
 import AuthScreen from './components/AuthScreen';
 import AdminPanel from './components/AdminPanel';
 import Toast from './components/Toast';
-import { LogoIcon, BuildingOfficeIcon, ChartPieIcon, ArrowLeftIcon, WrenchScrewdriverIcon } from './components/icons';
+import { LogoIcon, BuildingOfficeIcon, ChartPieIcon, ArrowLeftIcon, WrenchScrewdriverIcon, EyeIcon, PencilIcon } from './components/icons';
 
 type View = 'SITES_LIST' | 'PROJECT_DASHBOARD' | 'REPORT_FORM' | 'REPORT_VIEW' | 'MANAGEMENT_DASHBOARD' | 'PENDING_ACTIONS' | 'ADMIN_PANEL';
 
@@ -68,20 +68,20 @@ const App: React.FC = () => {
      setReports(await getReports());
   };
   
-  const filteredProjects = projects.filter(p => {
-      if (!userProfile) return false;
-      if (userProfile.role === 'admin' || userProfile.role === 'executive') return true; 
-      return userProfile.assigned_project_ids?.includes(p.id);
-  });
+  // MUDANÇA ARQUITETURAL: Todos veem todos os projetos e relatórios (Transparência)
+  // A restrição será apenas na hora de Editar/Criar (Write Permission)
+  const allProjects = projects;
+  const allReports = reports;
 
-  const filteredReports = reports.filter(r => {
+  // Função auxiliar para verificar permissão de ESCRITA
+  const canUserEditProject = (projectId: string) => {
       if (!userProfile) return false;
-      const projectForReport = projects.find(p => p.id === r.projectId);
-      if (!projectForReport) return false;
+      if (userProfile.role === 'admin') return true; // Admin edita tudo
+      if (userProfile.role === 'executive') return false; // Diretoria só vê
       
-      if (userProfile.role === 'admin' || userProfile.role === 'executive') return true;
-      return userProfile.assigned_project_ids?.includes(projectForReport.id);
-  });
+      // Engenheiros e Assistentes só editam se estiverem vinculados
+      return userProfile.assigned_project_ids?.includes(projectId);
+  };
 
   const handleLogout = async () => {
       await supabase.auth.signOut();
@@ -103,8 +103,8 @@ const App: React.FC = () => {
   };
 
   const handleCreateNewReport = async (project: Project) => {
-    if (userProfile?.role === 'executive') {
-        alert("Perfil Diretoria é apenas para visualização.");
+    if (!canUserEditProject(project.id)) {
+        alert("Você tem acesso apenas de LEITURA a esta obra.");
         return;
     }
     
@@ -126,8 +126,8 @@ const App: React.FC = () => {
   };
   
   const handleEditReport = (report: Report) => {
-    if (userProfile?.role === 'executive') {
-        alert("Perfil Diretoria é apenas para visualização.");
+    if (!canUserEditProject(report.projectId)) {
+        alert("Você tem acesso apenas de LEITURA a esta obra.");
         return;
     }
     setEditingReport(report);
@@ -144,7 +144,6 @@ const App: React.FC = () => {
   }
 
   const handleSaveReport = async (status: 'Draft' | 'Completed') => {
-    // Aguarda atualização dos dados antes de renderizar a lista novamente
     await refreshData();
     
     if (status === 'Draft') {
@@ -190,14 +189,14 @@ const App: React.FC = () => {
   )};
 
   const SitesList: React.FC = () => {
-    const data = filteredProjects.map(project => {
-      const projectReports = filteredReports.filter(r => r.projectId === project.id);
-      // FIX: Cria uma cópia do array com [...projectReports] antes de ordenar para evitar mutação do estado e tela branca
+    const data = allProjects.map(project => {
+      const projectReports = allReports.filter(r => r.projectId === project.id);
       const lastReport = [...projectReports].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
       const score = lastReport ? lastReport.score : null;
-      // UPDATED: Count all NCs as pending actions, not just those without plans
       const pendingActions = projectReports.flatMap(r => r.results).filter(res => res.status === 'Não Conforme').length;
-      return { project, score, pendingActions };
+      const hasWriteAccess = canUserEditProject(project.id);
+      
+      return { project, score, pendingActions, hasWriteAccess };
     });
     
     const getScoreBorderColor = (score: number | null) => {
@@ -213,11 +212,9 @@ const App: React.FC = () => {
             <div className="text-center mt-20 p-8">
                 <div className="bg-white p-8 rounded-lg shadow-md max-w-md mx-auto">
                     <BuildingOfficeIcon className="h-16 w-16 text-gray-300 mx-auto mb-4"/>
-                    <h3 className="text-lg font-bold text-gray-900">Nenhuma obra vinculada</h3>
+                    <h3 className="text-lg font-bold text-gray-900">Nenhuma obra cadastrada</h3>
                     <p className="mt-2 text-sm text-gray-500">
-                        {userProfile?.role === 'admin' 
-                            ? 'Você ainda não cadastrou nenhuma obra. Vá ao menu "Admin" para começar.'
-                            : 'Solicite acesso a uma obra com o administrador do sistema.'}
+                         Vá ao menu "Admin" para cadastrar obras.
                     </p>
                 </div>
             </div>
@@ -226,10 +223,19 @@ const App: React.FC = () => {
 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
-        {data.map(({ project, score, pendingActions }) => (
-          <div key={project.id} onClick={() => handleSelectProject(project)} className={`bg-white rounded-lg shadow-md hover:shadow-xl transition-all cursor-pointer flex flex-col border-l-4 ${getScoreBorderColor(score)}`}>
+        {data.map(({ project, score, pendingActions, hasWriteAccess }) => (
+          <div key={project.id} onClick={() => handleSelectProject(project)} className={`bg-white rounded-lg shadow-md hover:shadow-xl transition-all cursor-pointer flex flex-col border-l-4 ${getScoreBorderColor(score)} relative overflow-hidden group`}>
+            {/* Indicador de Permissão */}
+            <div className={`absolute top-0 right-0 px-2 py-1 text-[10px] font-bold uppercase rounded-bl-lg shadow-sm z-10 ${hasWriteAccess ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                {hasWriteAccess ? (
+                    <span className="flex items-center"><PencilIcon className="h-3 w-3 mr-1"/> Editor</span>
+                ) : (
+                    <span className="flex items-center"><EyeIcon className="h-3 w-3 mr-1"/> Leitor</span>
+                )}
+            </div>
+
             <div className="p-5 flex-grow">
-              <h3 className="font-bold text-lg text-gray-800">{project.name}</h3>
+              <h3 className="font-bold text-lg text-gray-800 pr-16">{project.name}</h3>
               <p className="text-sm text-gray-500">{project.location}</p>
             </div>
             <div className="bg-gray-50 px-5 py-3 rounded-b-lg flex justify-between items-center text-sm border-t border-gray-100">
@@ -252,20 +258,22 @@ const App: React.FC = () => {
     switch (view) {
       case 'PROJECT_DASHBOARD':
         if (!selectedProject) return null;
+        const isReadOnlyProject = !canUserEditProject(selectedProject.id);
         return (
           <ProjectDashboard
             project={selectedProject}
-            reports={filteredReports.filter(r => r.projectId === selectedProject.id)}
+            reports={allReports.filter(r => r.projectId === selectedProject.id)}
             onViewReport={handleViewReport}
             onNewReport={() => handleCreateNewReport(selectedProject)}
             onEditReportCategory={handleEditReportCategory}
             onBack={navigateToSitesList}
+            readOnly={isReadOnlyProject}
           />
         );
       case 'REPORT_FORM':
         if (!selectedProject) return null;
         if (userProfile?.role === 'executive' && editingReport) {
-            return <ReportView report={editingReport} project={selectedProject} onBack={() => setView('PROJECT_DASHBOARD')} onEdit={() => {}} />
+            return <ReportView report={editingReport} project={selectedProject} onBack={() => setView('PROJECT_DASHBOARD')} onEdit={() => {}} readOnly={true} />
         }
         
         return (
@@ -282,12 +290,16 @@ const App: React.FC = () => {
         if (!selectedReport) return null;
         const projectForReport = projects.find(p => p.id === selectedReport.projectId);
         if (!projectForReport) return null;
+        
+        const isReadOnlyView = !canUserEditProject(projectForReport.id);
+
         return (
           <ReportView
             report={selectedReport}
             project={projectForReport}
             onBack={() => setView('PROJECT_DASHBOARD')}
             onEdit={handleEditReport}
+            readOnly={isReadOnlyView}
           />
         );
       case 'MANAGEMENT_DASHBOARD':
@@ -308,7 +320,7 @@ const App: React.FC = () => {
 
     const navItems: { view: View; label: string; icon: React.FC<React.SVGProps<SVGSVGElement>>; roles: string[] }[] = [
       { view: 'SITES_LIST', label: 'Obras', icon: BuildingOfficeIcon, roles: ['admin', 'executive', 'manager', 'assistant'] },
-      { view: 'MANAGEMENT_DASHBOARD', label: 'Gerencial', icon: ChartPieIcon, roles: ['admin', 'executive'] },
+      { view: 'MANAGEMENT_DASHBOARD', label: 'Gerencial', icon: ChartPieIcon, roles: ['admin', 'executive', 'manager', 'assistant'] }, // Liberado para todos verem o global
       { view: 'ADMIN_PANEL', label: 'Admin', icon: WrenchScrewdriverIcon, roles: ['admin'] },
     ];
     

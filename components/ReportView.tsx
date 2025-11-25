@@ -9,6 +9,7 @@ interface ReportViewProps {
   project: Project;
   onBack: () => void;
   onEdit: (report: Report) => void;
+  readOnly?: boolean;
 }
 
 // Componente para o botão de imprimir
@@ -41,7 +42,7 @@ const TimelineStep: React.FC<{ label: string, date: string, icon: any, status: '
     )
 }
 
-const ReportView: React.FC<ReportViewProps> = ({ report, project, onBack, onEdit }) => {
+const ReportView: React.FC<ReportViewProps> = ({ report, project, onBack, onEdit, readOnly = false }) => {
   const getStatusBadge = (status: InspectionStatus | null) => {
     switch (status) {
       case InspectionStatus.C:
@@ -89,7 +90,7 @@ const ReportView: React.FC<ReportViewProps> = ({ report, project, onBack, onEdit
             Voltar para o Projeto
         </button>
         <div className="flex">
-            {report.status === 'Draft' && (
+            {report.status === 'Draft' && !readOnly && (
                 <button
                 onClick={() => onEdit(report)}
                 className="flex items-center bg-yellow-500 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-yellow-600 transition duration-300 text-sm"

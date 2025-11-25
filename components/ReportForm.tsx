@@ -252,7 +252,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
     );
   };
   
-  const renderItem = (item: ChecklistItem) => {
+  const renderItem = (item: ChecklistItem, index: number) => {
     const result = reportData.results.find(r => r.itemId === item.id);
     if (!result) return null;
     const isNC = result.status === InspectionStatus.NC;
@@ -261,7 +261,8 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
       <div key={item.id} id={`item-${item.id}`} className={`py-4 border-b border-gray-200 last:border-b-0 scroll-mt-20 ${result.status === null ? 'bg-red-50/30 -mx-4 px-4' : ''}`}>
         <div className="flex justify-between items-start gap-4">
             <div className="flex-1 pt-1.5">
-                <p className="font-medium text-gray-800">{item.id.split('-').pop()?.padStart(2, '0')}. {item.text}</p>
+                {/* Ajuste da numeração para ser baseada no índice do loop + 1, reiniciando por subcategoria */}
+                <p className="font-medium text-gray-800">{(index + 1).toString().padStart(2, '0')}. {item.text}</p>
                 {result.status === null && (
                     <span className="text-xs text-red-500 font-bold flex items-center mt-1">
                         <ExclamationTriangleIcon className="h-3 w-3 mr-1"/> Pendente de verificação
@@ -379,7 +380,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                             <h3 className="text-lg font-bold text-gray-800 mb-3 pb-3 border-b-2 border-gray-200">
                                 {subCat.title}
                             </h3>
-                            {subCat.items.map(renderItem)}
+                            {subCat.items.map((item, itemIndex) => renderItem(item, itemIndex))}
                         </div>
                     ))}
                 </div>

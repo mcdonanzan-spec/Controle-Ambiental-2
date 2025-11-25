@@ -77,13 +77,13 @@ const ReportView: React.FC<ReportViewProps> = ({ report, project, onBack, onEdit
             <div key={subCat.title} className="border border-t-0 rounded-b-lg p-3">
               <h3 className="text-md font-semibold text-gray-600 mb-2">{subCat.title}</h3>
               <ul className="divide-y divide-gray-200">
-                {subCat.items.map(item => {
+                {subCat.items.map((item, index) => {
                   const result = report.results.find(r => r.itemId === item.id);
                   if (!result) return null;
                   return (
                     <li key={item.id} className="py-3">
                       <div className="flex justify-between items-start">
-                        <p className="text-sm text-gray-800 flex-1 pr-4">{item.text}</p>
+                        <p className="text-sm text-gray-800 flex-1 pr-4">{(index + 1).toString().padStart(2, '0')}. {item.text}</p>
                         {getStatusBadge(result.status)}
                       </div>
                       {result.comment && <p className="text-sm text-gray-500 mt-2 pl-4 border-l-2 border-gray-200">"{result.comment}"</p>}

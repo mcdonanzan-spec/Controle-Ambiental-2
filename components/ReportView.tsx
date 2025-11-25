@@ -2,7 +2,7 @@
 import React from 'react';
 import { Report, Project, InspectionStatus } from '../types';
 import { CHECKLIST_DEFINITIONS } from '../constants';
-import { ArrowLeftIcon, PencilIcon, CameraIcon } from './icons';
+import { ArrowLeftIcon, PencilIcon, CameraIcon, ClockIcon } from './icons';
 
 interface ReportViewProps {
   report: Report;
@@ -34,6 +34,9 @@ const ReportView: React.FC<ReportViewProps> = ({ report, project, onBack, onEdit
       default: return 'bg-gray-100 text-gray-800';
     }
   };
+  
+  const inspectionDate = report.inspectionDate || report.date;
+  const closedDate = report.closedDate || (report.status === 'Completed' ? report.date : null);
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg max-w-4xl mx-auto">
@@ -43,11 +46,25 @@ const ReportView: React.FC<ReportViewProps> = ({ report, project, onBack, onEdit
             <ArrowLeftIcon className="h-4 w-4 mr-1" />
             Back to Project
           </button>
-          <h1 className="text-2xl font-bold text-gray-800">Inspection Report</h1>
-          <p className="text-gray-600">{project.name} - {new Date(report.date).toLocaleDateString()}</p>
+          <h1 className="text-2xl font-bold text-gray-800">Relatório de Inspeção</h1>
+          <p className="text-gray-600 font-medium">{project.name}</p>
+          
+          <div className="mt-2 flex flex-col text-sm text-gray-500 gap-1">
+             <div className="flex items-center">
+                <ClockIcon className="h-4 w-4 mr-1 text-blue-500"/>
+                Data da Vistoria: <span className="font-bold text-gray-800 ml-1">{new Date(inspectionDate).toLocaleDateString()}</span>
+             </div>
+             {closedDate && (
+                 <div className="flex items-center">
+                    <ClockIcon className="h-4 w-4 mr-1 text-green-500"/>
+                    Fechamento/Assinatura: <span className="font-bold text-gray-800 ml-1">{new Date(closedDate).toLocaleDateString()}</span>
+                 </div>
+             )}
+          </div>
+
         </div>
         <div className="text-right">
-          <p className="text-sm text-gray-500">Inspector</p>
+          <p className="text-sm text-gray-500">Inspetor Responsável</p>
           <p className="font-semibold text-gray-800">{report.inspector}</p>
           <div className="mt-2">
             <span className={`px-3 py-1 text-sm font-bold rounded-full ${getEvaluationChip(report.evaluation)}`}>
@@ -64,7 +81,7 @@ const ReportView: React.FC<ReportViewProps> = ({ report, project, onBack, onEdit
               className="flex items-center bg-yellow-500 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-yellow-600 transition duration-300 text-sm"
             >
               <PencilIcon className="h-4 w-4 mr-2" />
-              Edit Draft
+              Editar Rascunho
             </button>
          </div>
       )}
@@ -96,10 +113,10 @@ const ReportView: React.FC<ReportViewProps> = ({ report, project, onBack, onEdit
                       )}
                       {result.status === InspectionStatus.NC && result.actionPlan && (
                         <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md text-sm">
-                            <h5 className="font-bold text-red-700">Action Plan</h5>
-                            <p><span className="font-semibold">Action:</span> {result.actionPlan.actions}</p>
-                            <p><span className="font-semibold">Responsible:</span> {result.actionPlan.responsible}</p>
-                            <p><span className="font-semibold">Deadline:</span> {result.actionPlan.deadline}</p>
+                            <h5 className="font-bold text-red-700">Plano de Ação</h5>
+                            <p><span className="font-semibold">Ação:</span> {result.actionPlan.actions}</p>
+                            <p><span className="font-semibold">Responsável:</span> {result.actionPlan.responsible}</p>
+                            <p><span className="font-semibold">Prazo:</span> {new Date(result.actionPlan.deadline).toLocaleDateString()}</p>
                         </div>
                       )}
                     </li>
@@ -112,15 +129,15 @@ const ReportView: React.FC<ReportViewProps> = ({ report, project, onBack, onEdit
       ))}
       
       <div className="mt-8 pt-4 border-t">
-        <h2 className="text-xl font-semibold text-gray-700 mb-4">Signatures</h2>
+        <h2 className="text-xl font-semibold text-gray-700 mb-4">Assinaturas Digitais</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-500">Environmental Responsible</p>
-            <p className="font-serif text-lg text-gray-800 italic">{report.signatures.inspector || 'Not signed'}</p>
+            <p className="text-sm text-gray-500">Responsável Ambiental</p>
+            <p className="font-serif text-lg text-gray-800 italic">{report.signatures.inspector || 'Não assinado'}</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-500">Engineering Responsible</p>
-            <p className="font-serif text-lg text-gray-800 italic">{report.signatures.manager || 'Not signed'}</p>
+            <p className="text-sm text-gray-500">Responsável Engenharia</p>
+            <p className="font-serif text-lg text-gray-800 italic">{report.signatures.manager || 'Não assinado'}</p>
           </div>
         </div>
       </div>

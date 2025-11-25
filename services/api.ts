@@ -76,6 +76,8 @@ export const getReports = async (): Promise<Report[]> => {
     id: row.id,
     projectId: row.project_id,
     date: row.created_at,
+    inspectionDate: row.content.inspectionDate || row.created_at, // Fallback para compatibilidade
+    closedDate: row.content.closedDate,
     inspector: row.content.inspector,
     status: row.content.status,
     results: row.content.results,
@@ -119,12 +121,18 @@ const calculateScores = (results: InspectionItemResult[]) => {
 }
 
 export const saveReport = async (reportData: Omit<Report, 'id' | 'score' | 'evaluation' | 'categoryScores'> & { id?: string }): Promise<Report | null> => {
-  // Gera um ID se não existir, para garantir a chave primária
+  // Gera um ID se não existir
   if (!reportData.id) {
      reportData.id = generateUUID();
   }
 
   const { score, evaluation, categoryScores } = calculateScores(reportData.results);
+  
+  // Se estiver concluindo agora, grava a data de fechamento
+  if (reportData.status === 'Completed' && !reportData.closedDate) {
+      reportData.closedDate = new Date().toISOString();
+  }
+
   const fullContent = { ...reportData, score, evaluation, categoryScores };
   
   // Verifica se o relatório já existe no banco
@@ -135,6 +143,7 @@ export const saveReport = async (reportData: Omit<Report, 'id' | 'score' | 'eval
       .from('reports')
       .update({
         content: fullContent,
+        // Opcional: Atualizar created_at se quisermos que reflita a última edição, mas geralmente created_at é imutável no SQL
       })
       .eq('id', reportData.id)
       .select()
@@ -158,7 +167,6 @@ export const saveReport = async (reportData: Omit<Report, 'id' | 'score' | 'eval
   }
 };
 
-// Modificado para ser Async e buscar histórico
 export const createReportDraft = async (projectId: string): Promise<Omit<Report, 'id' | 'score' | 'evaluation' | 'categoryScores'>> => {
   const allItems = CHECKLIST_DEFINITIONS.flatMap(cat => cat.subCategories.flatMap(sub => sub.items));
   
@@ -172,7 +180,6 @@ export const createReportDraft = async (projectId: string): Promise<Omit<Report,
       .limit(1);
 
   if (reportsData && reportsData.length > 0) {
-      // Reconstrói o objeto Report a partir do JSON do banco
       const r = reportsData[0];
       previousReport = {
           id: r.id,
@@ -183,7 +190,6 @@ export const createReportDraft = async (projectId: string): Promise<Omit<Report,
   }
 
   const results: InspectionItemResult[] = allItems.map(item => {
-    // 2. Verificar se este item estava NC no relatório anterior
     let preFilledComment = '';
     let preFilledActionPlan = {
         actions: '',
@@ -195,10 +201,10 @@ export const createReportDraft = async (projectId: string): Promise<Omit<Report,
     if (previousReport) {
         const prevResult = previousReport.results.find(res => res.itemId === item.id);
         if (prevResult && prevResult.status === InspectionStatus.NC) {
-            // Se estava NC, trazemos o histórico para o novo relatório
-            // Limpa o comentário anterior para evitar "PENDÊNCIA ANTERIOR: PENDÊNCIA ANTERIOR: ..."
             const cleanComment = prevResult.comment.replace(/⚠️ PENDÊNCIA ANTERIOR.*?: /g, '').trim();
-            preFilledComment = `⚠️ PENDÊNCIA ANTERIOR (${new Date(previousReport.date).toLocaleDateString()}): ${cleanComment || 'Sem observações'}`;
+            // Usa a data de inspeção anterior se disponível, senão a data do sistema
+            const prevDate = previousReport.inspectionDate || previousReport.date;
+            preFilledComment = `⚠️ PENDÊNCIA ANTERIOR (${new Date(prevDate).toLocaleDateString()}): ${cleanComment || 'Sem observações'}`;
             
             if (prevResult.actionPlan) {
                 preFilledActionPlan = { ...prevResult.actionPlan };
@@ -208,7 +214,7 @@ export const createReportDraft = async (projectId: string): Promise<Omit<Report,
 
     return {
         itemId: item.id,
-        status: null, // Começa sempre como nulo para forçar re-verificação, mesmo se era NC antes
+        status: null, 
         photos: [],
         comment: preFilledComment,
         actionPlan: preFilledActionPlan
@@ -217,7 +223,8 @@ export const createReportDraft = async (projectId: string): Promise<Omit<Report,
 
   return {
     projectId,
-    date: new Date().toISOString().split('T')[0],
+    date: new Date().toISOString(), // Data de criação do sistema
+    inspectionDate: new Date().toISOString().split('T')[0], // Data da Vistoria (Default Hoje)
     inspector: '', 
     status: 'Draft',
     results,
@@ -228,10 +235,7 @@ export const createReportDraft = async (projectId: string): Promise<Omit<Report,
   };
 };
 
-// Função mantida para compatibilidade, mas redireciona para a versão async (wrapper se necessário, mas ideal usar createReportDraft)
-// No App.tsx vamos mudar para usar createReportDraft
 export const getNewReportTemplate = (projectId: string) => {
-    // Deprecated implementation - placeholder
     throw new Error("Use createReportDraft instead");
 }
 
@@ -267,21 +271,14 @@ export const updateUserProfile = async (userId: string, updates: Partial<UserPro
 }
 
 export const deleteUserProfile = async (userId: string): Promise<void> => {
-    // Nota: Excluir o Auth User exige Service Role Key (Backend).
-    // No Frontend com Supabase Client padrão, só podemos excluir os dados da tabela 'profiles' que o usuário tem acesso.
-    // Isso efetivamente remove o usuário do sistema visualmente, embora o login ainda possa existir no Auth provider até ser limpo manualmente no painel do Supabase.
-    
     const { error } = await supabase.from('profiles').delete().eq('id', userId);
     if (error) throw error;
 }
 
-// Esta função cria um usuário usando um cliente temporário para não deslogar o admin atual
 export const createUserAccount = async (userData: {email: string, password: string, name: string, role: string, projectIds: string[]}) => {
-    // Recupera as configs do ambiente para criar um segundo cliente
     const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
     const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
     
-    // Cliente temporário sem persistencia de sessão
     const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
         auth: {
             persistSession: false, 
@@ -290,7 +287,6 @@ export const createUserAccount = async (userData: {email: string, password: stri
         }
     });
 
-    // 1. Criar o usuário na Auth do Supabase
     const { data, error } = await tempClient.auth.signUp({
         email: userData.email,
         password: userData.password,
@@ -304,11 +300,8 @@ export const createUserAccount = async (userData: {email: string, password: stri
     if (error) throw error;
     if (!data.user) throw new Error("Usuário criado mas ID não retornado.");
 
-    // 2. Atualizar o perfil criado automaticamente (via trigger) ou criar se não existir, usando o cliente ADMIN (logado)
-    // Pequeno delay para garantir que o trigger do Supabase rodou (se houver)
     await new Promise(r => setTimeout(r, 1000));
 
-    // Atualizamos os dados usando o cliente principal que tem permissão de admin
     const { error: profileError } = await supabase
         .from('profiles')
         .update({
@@ -317,9 +310,7 @@ export const createUserAccount = async (userData: {email: string, password: stri
         })
         .eq('id', data.user.id);
 
-    // Se o trigger falhou e não criou o perfil, tentamos inserir
     if (profileError) {
-        // Tenta insert manual caso update falhe (fallback)
          await supabase.from('profiles').upsert({
             id: data.user.id,
             email: userData.email,

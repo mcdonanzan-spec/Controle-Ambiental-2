@@ -32,7 +32,9 @@ export interface InspectionItemResult {
 export interface Report {
   id: string;
   projectId: string;
-  date: string;
+  date: string; // Data de Criação (Sistema)
+  inspectionDate?: string; // Data da Vistoria (Fato Gerador)
+  closedDate?: string; // Data de Fechamento (Assinatura final)
   inspector: string;
   status: 'Draft' | 'Completed';
   results: InspectionItemResult[];

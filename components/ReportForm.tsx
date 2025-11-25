@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Project, Report, InspectionStatus, ChecklistItem, InspectionItemResult, Photo, ActionPlan, UserProfile } from '../types';
 import { CHECKLIST_DEFINITIONS } from '../constants';
 import { saveReport, uploadPhoto } from '../services/api'; 
-import { CameraIcon, CheckIcon, PaperAirplaneIcon, XMarkIcon, CubeTransparentIcon, FunnelIcon, WrenchScrewdriverIcon, BeakerIcon, FireIcon, DocumentCheckIcon, MinusIcon, ShieldCheckIcon, ExclamationTriangleIcon } from './icons';
+import { CameraIcon, CheckIcon, PaperAirplaneIcon, XMarkIcon, CubeTransparentIcon, FunnelIcon, WrenchScrewdriverIcon, BeakerIcon, FireIcon, DocumentCheckIcon, MinusIcon, ShieldCheckIcon, ExclamationTriangleIcon, ClockIcon } from './icons';
 
 interface ReportFormProps {
   project: Project;
@@ -109,11 +109,12 @@ const GovBrBadge: React.FC<{ name: string, date: string }> = ({ name, date }) =>
 
 
 const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userProfile, onSave, onCancel, initialCategoryId }) => {
-  // Se existingReport vier vazio (caso raro com a nova lógica async), inicializa um dummy, mas o App.tsx já garante que ele vem preenchido com draft
+  // Inicializa o estado com dados existentes ou novo draft
   const [reportData, setReportData] = useState<Omit<Report, 'id' | 'score' | 'evaluation' | 'categoryScores'> & {id?: string}>(
     existingReport ? {...existingReport} : {
         projectId: project.id,
         date: new Date().toISOString(),
+        inspectionDate: new Date().toISOString().split('T')[0], // Hoje YYYY-MM-DD
         inspector: userProfile.full_name,
         status: 'Draft',
         results: [],
@@ -127,7 +128,6 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
 
   const isReadOnly = useMemo(() => existingReport?.status === 'Completed', [existingReport]);
   
-  // Valida se todos os itens foram respondidos (status não pode ser null)
   const isAllItemsAnswered = useMemo(() => {
       if (!reportData.results || reportData.results.length === 0) return false;
       return reportData.results.every(r => r.status !== null);
@@ -138,7 +138,6 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
       return reportData.results.filter(r => r.status === null).length;
   }, [reportData.results]);
   
-  // Validação: Se é NC, TEM QUE TER PLANO DE AÇÃO PREENCHIDO
   const areActionPlansValid = useMemo(() => {
       const ncItems = reportData.results.filter(r => r.status === InspectionStatus.NC);
       return ncItems.every(r => r.actionPlan && r.actionPlan.actions && r.actionPlan.responsible && r.actionPlan.deadline);
@@ -151,6 +150,10 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
       results: prev.results.map(res => (res.itemId === itemId ? { ...res, ...newResult } : res)),
     }));
   };
+  
+  const handleDateChange = (newDate: string) => {
+      setReportData(prev => ({ ...prev, inspectionDate: newDate }));
+  }
 
   const handleAddPhoto = (itemId: string, photo: Photo) => {
     const result = reportData.results.find(r => r.itemId === itemId);
@@ -175,7 +178,6 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
 
   const handleGovSign = async (role: 'inspector' | 'manager') => {
       setSigningRole(role);
-      // Simulação de delay de API do Gov.br
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       const signatureText = userProfile.full_name;
@@ -193,17 +195,15 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
   const handleSubmit = async (status: 'Draft' | 'Completed') => {
     if (isReadOnly) return;
     
-    // Validação extra antes de enviar
     if (status === 'Completed') {
         if (!isAllItemsAnswered) {
             alert(`Atenção: Existem ${uncheckedCount} itens não verificados. Preencha todo o checklist antes de concluir.`);
             return;
         }
         
-        // Validação de Plano de Ação
         if (!areActionPlansValid) {
             const invalidCount = reportData.results.filter(r => r.status === InspectionStatus.NC && (!r.actionPlan?.actions || !r.actionPlan?.responsible || !r.actionPlan?.deadline)).length;
-            alert(`ERRO DE AUDITORIA: Existem ${invalidCount} itens "Não Conformes" sem Plano de Ação completo. \n\nPara cada item NC, é obrigatório preencher: Ação, Responsável e Prazo Limite.`);
+            alert(`ERRO DE AUDITORIA: Existem ${invalidCount} itens "Não Conformes" sem Plano de Ação completo.`);
             return;
         }
 
@@ -221,7 +221,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
     }
 
     try {
-        const finalData = { ...currentData, status, date: new Date().toISOString() };
+        const finalData = { ...currentData, status };
         await saveReport(finalData);
         onSave(status);
     } catch (e) {
@@ -262,7 +262,6 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
       <div key={item.id} id={`item-${item.id}`} className={`py-4 border-b border-gray-200 last:border-b-0 scroll-mt-20 ${result.status === null ? 'bg-red-50/30 -mx-4 px-4' : ''}`}>
         <div className="flex justify-between items-start gap-4">
             <div className="flex-1 pt-1.5">
-                {/* Ajuste da numeração para ser baseada no índice do loop + 1, reiniciando por subcategoria */}
                 <p className="font-medium text-gray-800">{(index + 1).toString().padStart(2, '0')}. {item.text}</p>
                 {result.status === null && (
                     <span className="text-xs text-red-500 font-bold flex items-center mt-1">
@@ -277,14 +276,12 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
             </div>
         </div>
         
-        {/* Mostra comentário pré-carregado de pendências anteriores sempre que existir, para contexto */}
         {result.status === null && result.comment && result.comment.includes("PENDÊNCIA ANTERIOR") && (
              <div className="mt-2 text-xs text-orange-600 bg-orange-50 p-2 rounded border border-orange-200">
                 {result.comment}
              </div>
         )}
         
-        {/* PAINEL DE CONFORMIDADE (Compacto) */}
         <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isC ? 'max-h-[300px] opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
             <div className="p-3 bg-green-50/50 border border-green-200 rounded-lg flex flex-col md:flex-row gap-4 items-start">
                 <div className="flex-shrink-0">
@@ -304,7 +301,6 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
             </div>
         </div>
 
-        {/* PAINEL DE NÃO CONFORMIDADE (Completo) */}
         <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isNC ? 'max-h-[1000px] opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
             <div className="p-4 bg-red-50/50 border border-red-200 rounded-lg space-y-4 shadow-sm">
                 <div>
@@ -369,9 +365,25 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
   return (
     <div className="bg-white pb-32">
         <div className="p-4 sm:p-6 min-h-[calc(100vh-200px)]">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">{existingReport ? 'Editar Relatório' : 'Novo Relatório de Inspeção'}</h2>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <h2 className="text-2xl font-bold text-gray-800">{existingReport ? 'Editar Relatório' : 'Novo Relatório de Inspeção'}</h2>
+                
+                {/* CAMPO DE DATA DA VISTORIA */}
+                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 flex flex-col md:flex-row items-start md:items-center gap-2">
+                    <label className="text-xs font-bold text-blue-800 uppercase flex items-center">
+                        <ClockIcon className="h-4 w-4 mr-1"/> Data da Vistoria:
+                    </label>
+                    <input 
+                        type="date" 
+                        value={reportData.inspectionDate || reportData.date.split('T')[0]} 
+                        onChange={(e) => handleDateChange(e.target.value)}
+                        disabled={isReadOnly}
+                        className="bg-white border border-blue-300 text-blue-900 text-sm rounded focus:ring-blue-500 focus:border-blue-500 block p-1 font-semibold disabled:bg-gray-100 disabled:text-gray-500"
+                    />
+                    {!isReadOnly && <span className="text-[10px] text-blue-500 italic hidden md:inline ml-2">(Pode ser retroativa)</span>}
+                </div>
+            </div>
             
-            {/* Aviso de Itens Incompletos */}
             {!isAllItemsAnswered && !isReadOnly && (
                 <div className="mb-4 bg-orange-50 border-l-4 border-orange-500 text-orange-700 p-4 shadow-sm rounded-r-md flex items-start">
                     <ExclamationTriangleIcon className="h-6 w-6 mr-2 flex-shrink-0"/>
@@ -382,7 +394,6 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                 </div>
             )}
             
-            {/* Aviso de Planos de Ação Inválidos */}
             {isAllItemsAnswered && !areActionPlansValid && !isReadOnly && (
                 <div className="mb-4 bg-red-50 border-l-4 border-red-500 text-red-700 p-4 shadow-sm rounded-r-md flex items-start">
                     <ExclamationTriangleIcon className="h-6 w-6 mr-2 flex-shrink-0"/>
@@ -396,7 +407,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
             {isReadOnly && (
               <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4" role="alert">
                 <p className="font-bold">Modo de Leitura</p>
-                <p>Este relatório foi concluído e não pode ser alterado.</p>
+                <p>Este relatório foi concluído e assinado em {new Date(reportData.closedDate || reportData.date).toLocaleDateString()}.</p>
               </div>
             )}
             
@@ -434,7 +445,6 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                         <>
                             <p className="text-sm text-gray-500 my-4">Para validade jurídica interna, utilize a assinatura digital via Gov.br abaixo.</p>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
-                                {/* Assinatura do Assistente */}
                                 <div className="p-4 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
                                     <h4 className="font-bold text-gray-800 mb-1">Responsável Ambiental (Assistente)</h4>
                                     <p className="text-xs text-gray-400 mb-4">Inspeção de Campo</p>
@@ -458,7 +468,6 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                                     )}
                                 </div>
 
-                                {/* Assinatura do Gerente */}
                                 <div className="p-4 border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
                                     <h4 className="font-bold text-gray-800 mb-1">Responsável Engenharia (Engenheiro)</h4>
                                     <p className="text-xs text-gray-400 mb-4">Validação Técnica</p>
@@ -510,7 +519,6 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
             <PaperAirplaneIcon className="h-5 w-5 mr-2"/>
             {saving ? 'Salvando...' : 'Salvar Rascunho'}
         </button>
-        {/* Desabilitado se não estiver tudo respondido ou se NC não tiver plano de ação */}
         <button onClick={() => handleSubmit('Completed')} disabled={isReadOnly || saving || !isAllItemsAnswered || !areActionPlansValid} className="w-full sm:w-auto flex justify-center items-center px-4 py-2 text-white bg-green-600 rounded-md hover:bg-green-700 font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed">
             <CheckIcon className="h-5 w-5 mr-2"/>
             {saving ? 'Enviando...' : 'Concluir e Enviar'}

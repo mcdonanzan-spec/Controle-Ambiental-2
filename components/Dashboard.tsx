@@ -42,7 +42,10 @@ const TrendChart: React.FC<{ reports: Report[], projects: Project[] }> = ({ repo
         const dataByMonth: { [month: string]: { [projectId: string]: { sum: number, count: number } } } = {};
 
         reports.forEach(report => {
-            const monthKey = new Date(report.date).toISOString().slice(0, 7); 
+            // USA DATA DE INSPEÇÃO (Se disponível) PARA O GRÁFICO HISTÓRICO
+            // Isso garante que o gráfico mostre quando a obra estava naquele estado, não quando o gerente assinou.
+            const refDate = report.inspectionDate || report.date;
+            const monthKey = new Date(refDate).toISOString().slice(0, 7); 
             
             if (!dataByMonth[monthKey]) {
                 dataByMonth[monthKey] = {};
@@ -146,7 +149,9 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
   const availableMonths = useMemo(() => {
       const months = new Set<string>();
       reports.forEach(r => {
-          months.add(new Date(r.date).toISOString().slice(0, 7)); // YYYY-MM
+          // Usa inspectionDate se disponível
+          const refDate = r.inspectionDate || r.date;
+          months.add(new Date(refDate).toISOString().slice(0, 7)); // YYYY-MM
       });
       return Array.from(months).sort().reverse();
   }, [reports]);
@@ -157,14 +162,22 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
           let projectReports = reports.filter(r => r.projectId === project.id);
           
           if (selectedPeriod !== 'latest') {
-             // Se não for 'latest', pegamos apenas relatórios DO MÊS selecionado
-             projectReports = projectReports.filter(r => r.date.startsWith(selectedPeriod));
+             // Se não for 'latest', pegamos apenas relatórios DO MÊS selecionado (Baseado na Vistoria)
+             projectReports = projectReports.filter(r => {
+                 const refDate = r.inspectionDate || r.date;
+                 return refDate.startsWith(selectedPeriod);
+             });
           }
 
           if (projectReports.length === 0) return null;
           
           // Retorna sempre o MAIS RECENTE dentro do escopo (Seja all-time ou dentro do mês específico)
-          return [...projectReports].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+          // Ordena pela data da Vistoria para ser mais preciso
+          return [...projectReports].sort((a, b) => {
+              const dateA = new Date(a.inspectionDate || a.date).getTime();
+              const dateB = new Date(b.inspectionDate || b.date).getTime();
+              return dateB - dateA;
+          })[0];
       }).filter((r): r is Report => r !== null);
   }, [projects, reports, selectedPeriod]);
 
@@ -262,8 +275,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
               <div>
                   <h3 className="text-sm font-bold text-yellow-800 uppercase">Modo de Análise Histórica</h3>
                   <p className="text-sm text-yellow-700">
-                      Você está visualizando os dados consolidados referentes a <strong>{formatMonth(selectedPeriod)}</strong>. 
-                      Os indicadores abaixo refletem a situação das obras naquele momento específico.
+                      Você está visualizando os dados consolidados referentes a <strong>{formatMonth(selectedPeriod)}</strong> (baseado na data de vistoria).
                   </p>
               </div>
               <button 

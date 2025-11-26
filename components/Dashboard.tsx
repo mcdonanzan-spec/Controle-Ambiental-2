@@ -345,9 +345,9 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 page-break-inside-avoid">
         {/* BAR CHART */}
         <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-md border border-gray-100">
-          <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+          <div className="mb-6 flex flex-wrap justify-between items-center gap-2">
             <h2 className="text-lg font-bold text-gray-700">Ranking de Desempenho {selectedPeriod !== 'latest' && <span className="text-yellow-600">(Histórico)</span>}</h2>
-            {selectedPeriod === 'latest' && <span className="text-xs text-gray-500 font-medium bg-gray-50 px-2 py-1 rounded border border-gray-200 no-print whitespace-nowrap">Clique na barra para detalhar</span>}
+            {selectedPeriod === 'latest' && <span className="text-xs text-gray-500 font-medium bg-gray-50 px-2 py-1 rounded border border-gray-200 no-print">Clique na barra para detalhar</span>}
           </div>
           
           {data.length > 0 ? (

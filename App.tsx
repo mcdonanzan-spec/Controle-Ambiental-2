@@ -16,7 +16,7 @@ import { LogoIcon, BuildingOfficeIcon, ChartPieIcon, ArrowLeftIcon, WrenchScrewd
 type View = 'SITES_LIST' | 'PROJECT_DASHBOARD' | 'REPORT_FORM' | 'REPORT_VIEW' | 'MANAGEMENT_DASHBOARD' | 'PENDING_ACTIONS' | 'ADMIN_PANEL';
 
 // VERSÃO DO SISTEMA (Para controle de atualização)
-const APP_VERSION = "v2.5";
+const APP_VERSION = "v2.6 (Mobile Fix)";
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -375,7 +375,7 @@ const App: React.FC = () => {
     if (availableNavItems.length <= 1) return null;
 
     return (
-        <nav className="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex justify-around items-center z-[40] min-h-[64px] h-auto border-t border-gray-200 pb-[env(safe-area-inset-bottom)]">
+        <nav className="fixed bottom-0 left-0 right-0 w-full bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex justify-around items-center z-[100] min-h-[64px] h-auto border-t border-gray-200 pb-[env(safe-area-inset-bottom)]">
           {availableNavItems.map(item => {
             const isActive = view === item.view || (item.view === 'SITES_LIST' && ['PROJECT_DASHBOARD', 'REPORT_FORM', 'REPORT_VIEW'].includes(view));
             return (

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Project, Report, InspectionStatus, ChecklistItem, InspectionItemResult, Photo, ActionPlan, UserProfile } from '../types';
 import { CHECKLIST_DEFINITIONS } from '../constants';
@@ -73,7 +72,7 @@ const GovBrButton: React.FC<{ onClick: () => void, disabled?: boolean, loading?:
         type="button"
         onClick={onClick}
         disabled={disabled || loading}
-        className="w-full bg-[#1351B4] hover:bg-[#0c3c8c] text-white font-semibold py-2 px-4 rounded-full flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full bg-[#1351B4] hover:bg-[#0c3c8c] text-white font-semibold py-2 px-4 rounded-full flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
     >
         {loading ? (
              <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -295,7 +294,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                         onChange={e => handleResultChange(item.id, { comment: e.target.value.toUpperCase() })} 
                         placeholder="Ex: Local limpo e organizado..."
                         disabled={isReadOnly}
-                        className="w-full p-2 border border-green-200 bg-white rounded-md focus:ring-green-500 focus:border-green-500 disabled:bg-gray-100 text-sm h-[60px] uppercase"
+                        className="w-full p-2 border border-green-200 bg-white rounded-md focus:ring-green-500 focus:border-green-500 disabled:bg-gray-100 text-base h-[60px] uppercase"
                     />
                 </div>
             </div>
@@ -307,7 +306,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                     <label className="text-sm font-semibold text-gray-700">Descrição do Problema</label>
                     <textarea value={result.comment} onChange={e => handleResultChange(item.id, { comment: e.target.value.toUpperCase() })} placeholder="DESCREVA A NÃO CONFORMIDADE..."
                     disabled={isReadOnly}
-                    className="w-full mt-1 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 uppercase" rows={2}/>
+                    className="w-full mt-1 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 uppercase text-base" rows={2}/>
                 </div>
                  <div>
                     <label className="text-sm font-semibold text-gray-700">Evidência Fotográfica</label>
@@ -321,15 +320,15 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
                         <div className="md:col-span-2">
                             <label className="text-[10px] text-gray-500 uppercase font-bold">Ação Necessária</label>
-                            <input type="text" placeholder="O QUE SERÁ FEITO?" value={result.actionPlan?.actions} onChange={(e) => handleActionPlanChange(item.id, {actions: e.target.value.toUpperCase()})} disabled={isReadOnly} className="w-full p-2 border rounded-md text-sm disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500 uppercase"/>
+                            <input type="text" placeholder="O QUE SERÁ FEITO?" value={result.actionPlan?.actions} onChange={(e) => handleActionPlanChange(item.id, {actions: e.target.value.toUpperCase()})} disabled={isReadOnly} className="w-full p-2 border rounded-md text-base disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500 uppercase"/>
                         </div>
                         <div>
                             <label className="text-[10px] text-gray-500 uppercase font-bold">Responsável</label>
-                            <input type="text" placeholder="QUEM FARÁ?" value={result.actionPlan?.responsible} onChange={(e) => handleActionPlanChange(item.id, {responsible: e.target.value.toUpperCase()})} disabled={isReadOnly} className="w-full p-2 border rounded-md text-sm disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500 uppercase"/>
+                            <input type="text" placeholder="QUEM FARÁ?" value={result.actionPlan?.responsible} onChange={(e) => handleActionPlanChange(item.id, {responsible: e.target.value.toUpperCase()})} disabled={isReadOnly} className="w-full p-2 border rounded-md text-base disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500 uppercase"/>
                         </div>
                         <div>
                              <label className="text-[10px] text-gray-500 uppercase font-bold">Prazo Limite</label>
-                             <input type="date" value={result.actionPlan?.deadline} onChange={(e) => handleActionPlanChange(item.id, {deadline: e.target.value})} disabled={isReadOnly} className="w-full p-2 border rounded-md text-sm disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500"/>
+                             <input type="date" value={result.actionPlan?.deadline} onChange={(e) => handleActionPlanChange(item.id, {deadline: e.target.value})} disabled={isReadOnly} className="w-full p-2 border rounded-md text-base disabled:bg-gray-100 border-red-300 focus:border-red-500 focus:ring-red-500"/>
                         </div>
                     </div>
                 </div>
@@ -363,11 +362,11 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
   const canSignManager = !isReadOnly && (userProfile.role === 'manager' || userProfile.role === 'admin');
 
   return (
-    <div className="bg-white pb-64"> 
-        {/* Aumentado pb-48 para pb-64 para garantir espaço de sobra em mobile */}
-        <div className="p-4 sm:p-6 min-h-[calc(100vh-200px)]">
+    <div className="bg-white min-h-[100dvh] flex flex-col relative"> 
+        {/* CONTEÚDO PRINCIPAL - PADDING INFERIOR MASSIVO PARA SCROLL */}
+        <div className="p-4 sm:p-6 pb-[200px]">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <h2 className="text-2xl font-bold text-gray-800">{existingReport ? 'Editar Relatório' : 'Novo Relatório de Inspeção'}</h2>
+                <h2 className="text-2xl font-bold text-gray-800">{existingReport ? 'Editar Relatório' : 'Novo Relatório'}</h2>
                 
                 {/* CAMPO DE DATA DA VISTORIA */}
                 <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 flex flex-col md:flex-row items-start md:items-center gap-2">
@@ -390,7 +389,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                     <ExclamationTriangleIcon className="h-6 w-6 mr-2 flex-shrink-0"/>
                     <div>
                         <p className="font-bold">Checklist Incompleto</p>
-                        <p className="text-sm">Ainda existem <strong>{uncheckedCount}</strong> itens sem verificação. A assinatura digital e o envio só estarão disponíveis após preencher todo o checklist.</p>
+                        <p className="text-sm">Ainda existem <strong>{uncheckedCount}</strong> itens sem verificação.</p>
                     </div>
                 </div>
             )}
@@ -400,7 +399,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                     <ExclamationTriangleIcon className="h-6 w-6 mr-2 flex-shrink-0"/>
                     <div>
                         <p className="font-bold">Pendência de Auditoria</p>
-                        <p className="text-sm">Você marcou itens como "Não Conforme" mas não definiu o Plano de Ação completo (Ação, Responsável e Prazo). Isso é obrigatório para concluir.</p>
+                        <p className="text-sm">Plano de Ação incompleto para itens "Não Conformes".</p>
                     </div>
                 </div>
             )}
@@ -408,7 +407,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
             {isReadOnly && (
               <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4" role="alert">
                 <p className="font-bold">Modo de Leitura</p>
-                <p>Este relatório foi concluído e assinado em {new Date(reportData.closedDate || reportData.date).toLocaleDateString()}.</p>
+                <p>Este relatório foi concluído em {new Date(reportData.closedDate || reportData.date).toLocaleDateString()}.</p>
               </div>
             )}
             
@@ -435,11 +434,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                             <ExclamationTriangleIcon className="h-12 w-12 text-gray-300 mx-auto mb-3"/>
                             <h4 className="text-lg font-bold text-gray-500">Assinatura Bloqueada</h4>
                             <p className="text-gray-400 text-sm max-w-md mx-auto mt-2">
-                                Para garantir a integridade da auditoria, a assinatura digital só é liberada quando:
-                                <ul className="list-disc text-left ml-8 mt-2">
-                                    <li>Todos os itens foram verificados.</li>
-                                    <li>Todas as "Não Conformidades" possuem Plano de Ação completo.</li>
-                                </ul>
+                                Preencha todos os itens e planos de ação para assinar.
                             </p>
                         </div>
                     ) : (
@@ -498,33 +493,37 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
             )}
         </div>
 
-      {/* BARRA DE CATEGORIAS - POSICIONADA ACIMA DA BARRA DE AÇÃO */}
-      <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-0 right-0 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.1)] flex justify-around p-2 z-[50] border-t border-gray-100">
+      {/* STACKED BOTTOM BARS (Z-INDEX e POSITION FIXED CORRIGIDOS) */}
+      
+      {/* 1. BARRA DE CATEGORIAS (Fica acima da barra de ação) */}
+      <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-0 right-0 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.05)] flex justify-around p-2 z-[40] border-t border-gray-100 h-16">
         {CHECKLIST_DEFINITIONS.map(cat => {
             const isActive = activeCategoryId === cat.id;
             return (
                 <button key={cat.id} onClick={() => setActiveCategoryId(cat.id)} className={`flex flex-col items-center w-16 transition-colors ${isActive ? categoryColors[cat.id] : 'text-gray-400 hover:text-blue-600'}`}>
                     {React.createElement(categoryIcons[cat.id] || CubeTransparentIcon, {className: "h-6 w-6 mb-1"})}
-                    <span className="text-[10px] text-center leading-tight font-medium uppercase">{cat.title.split(' ')[0]}</span>
+                    <span className="text-[9px] text-center leading-tight font-medium uppercase truncate w-full">{cat.title.split(' ')[0]}</span>
                 </button>
             )
         })}
         <button onClick={() => setActiveCategoryId('signatures')} className={`flex flex-col items-center w-16 transition-colors ${activeCategoryId === 'signatures' ? categoryColors['signatures'] : 'text-gray-400 hover:text-blue-600'}`}>
           <DocumentCheckIcon className="h-6 w-6 mb-1"/>
-          <span className="text-[10px] font-medium uppercase">Assinar</span>
+          <span className="text-[9px] font-medium uppercase">Assinar</span>
         </button>
       </div>
       
-      {/* BARRA DE AÇÃO PRINCIPAL - RODAPÉ FIXO */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white p-3 flex flex-col sm:flex-row justify-end items-center gap-3 border-t-2 border-gray-200 z-[51] h-auto min-h-[80px] pb-[env(safe-area-inset-bottom)] pt-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-        <button onClick={onCancel} className="w-full sm:w-auto px-4 py-3 sm:py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-bold shadow-sm">Cancelar</button>
-        <button onClick={() => handleSubmit('Draft')} disabled={isReadOnly || saving} className="w-full sm:w-auto flex justify-center items-center px-4 py-3 sm:py-2 text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 font-bold disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed shadow-sm">
-            <PaperAirplaneIcon className="h-5 w-5 mr-2"/>
-            {saving ? 'Salvando...' : 'Salvar Rascunho'}
+      {/* 2. BARRA DE AÇÃO PRINCIPAL (Fica no rodapé absoluto) */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white p-2 px-4 flex flex-row justify-between items-center gap-3 border-t border-gray-200 z-[50] pb-[calc(0.5rem+env(safe-area-inset-bottom))] h-[calc(4.5rem+env(safe-area-inset-bottom))] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+        <button onClick={onCancel} className="flex-1 py-3 text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 font-bold shadow-sm text-sm">
+            Cancelar
         </button>
-        <button onClick={() => handleSubmit('Completed')} disabled={isReadOnly || saving || !isAllItemsAnswered || !areActionPlansValid} className="w-full sm:w-auto flex justify-center items-center px-4 py-3 sm:py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 font-bold disabled:bg-gray-400 disabled:cursor-not-allowed shadow-md">
-            <CheckIcon className="h-5 w-5 mr-2"/>
-            {saving ? 'Enviando...' : 'Concluir e Enviar'}
+        <button onClick={() => handleSubmit('Draft')} disabled={isReadOnly || saving} className="flex-1 flex justify-center items-center py-3 text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 font-bold disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed shadow-sm text-sm">
+            <PaperAirplaneIcon className="h-5 w-5 mr-1"/>
+            Rascunho
+        </button>
+        <button onClick={() => handleSubmit('Completed')} disabled={isReadOnly || saving || !isAllItemsAnswered || !areActionPlansValid} className="flex-[1.5] flex justify-center items-center py-3 text-white bg-green-600 rounded-lg hover:bg-green-700 font-bold disabled:bg-gray-400 disabled:cursor-not-allowed shadow-md text-sm">
+            <CheckIcon className="h-5 w-5 mr-1"/>
+            Concluir
         </button>
       </div>
     </div>

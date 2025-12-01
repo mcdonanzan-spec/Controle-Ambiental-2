@@ -1,9 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- ATUALIZAÇÃO CRÍTICA MOBILE: viewport-fit=cover e maximum-scale para evitar zoom indesejado em inputs -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>BRZ Environmental Inspection</title>
     <script src="https://cdn.tailwindcss.com"></script>
   <script type="importmap">
@@ -19,12 +19,18 @@
 }
 </script>
 <style>
+  /* Correção para iPhone X e superiores */
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
   @media print {
     @page { margin: 1cm; size: A4; }
     body { 
       -webkit-print-color-adjust: exact !important; 
       print-color-adjust: exact !important; 
       background-color: white !important;
+      padding-bottom: 0;
     }
     .no-print { display: none !important; }
     .page-break-inside-avoid { break-inside: avoid; }
@@ -33,7 +39,7 @@
   }
 </style>
 </head>
-  <body class="bg-gray-100">
+  <body class="bg-gray-100 text-gray-900 antialiased">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

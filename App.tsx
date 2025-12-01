@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Project, Report, UserProfile } from './types';
 import { getProjects, getReports, createReportDraft, changeOwnPassword } from './services/api';
@@ -16,7 +15,7 @@ import { LogoIcon, BuildingOfficeIcon, ChartPieIcon, ArrowLeftIcon, WrenchScrewd
 type View = 'SITES_LIST' | 'PROJECT_DASHBOARD' | 'REPORT_FORM' | 'REPORT_VIEW' | 'MANAGEMENT_DASHBOARD' | 'PENDING_ACTIONS' | 'ADMIN_PANEL';
 
 // VERSÃO DO SISTEMA (Para controle de atualização)
-const APP_VERSION = "v2.6 (Mobile Fix)";
+const APP_VERSION = "v3.0 (Mobile Native Fix)";
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -207,19 +206,22 @@ const App: React.FC = () => {
     else if (view === 'ADMIN_PANEL') title = 'Administração';
     
     return (
-    <header className="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-40 h-16">
+    <header className="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-40 h-16 w-full">
       <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setView('SITES_LIST')}>
-        <LogoIcon className="h-10 w-auto flex-shrink-0" />
+        <LogoIcon className="h-8 md:h-10 w-auto flex-shrink-0" />
         <div className="flex flex-col justify-center">
-            <h1 className="text-lg md:text-xl font-bold text-gray-800 uppercase leading-tight tracking-tight">CONTROLE AMBIENTAL</h1>
-            {userProfile && <p className="text-xs text-gray-500 hidden sm:block">Olá, {userProfile.full_name}</p>}
+            <h1 className="text-sm md:text-xl font-bold text-gray-800 uppercase leading-tight tracking-tight">CONTROLE AMBIENTAL</h1>
+            {userProfile && <p className="text-[10px] md:text-xs text-gray-500 hidden sm:block">Olá, {userProfile.full_name}</p>}
         </div>
       </div>
+      
+      {/* Título Centralizado em Desktop, Oculto em Mobile Pequeno */}
       <div className="hidden md:block text-md font-semibold text-gray-700 truncate max-w-xs uppercase">
         {title}
       </div>
-      <div className="flex items-center gap-2">
-          <div className="text-[10px] text-gray-400 font-mono hidden md:block">{APP_VERSION}</div>
+
+      <div className="flex items-center gap-1 md:gap-2">
+          <div className="text-[9px] text-gray-300 font-mono hidden md:block">{APP_VERSION}</div>
           <button 
             onClick={() => setIsChangePasswordOpen(true)}
             className="text-gray-500 hover:text-blue-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
@@ -227,7 +229,7 @@ const App: React.FC = () => {
           >
               <KeyIcon className="h-5 w-5"/>
           </button>
-          <button onClick={handleLogout} className="text-sm text-red-600 font-semibold hover:text-red-800 border border-red-200 px-3 py-1 rounded hover:bg-red-50">Sair</button>
+          <button onClick={handleLogout} className="text-xs md:text-sm text-red-600 font-semibold hover:text-red-800 border border-red-200 px-2 md:px-3 py-1 rounded hover:bg-red-50">Sair</button>
       </div>
     </header>
   )};
@@ -266,7 +268,7 @@ const App: React.FC = () => {
     }
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in pb-20">
         {data.map(({ project, score, pendingActions, hasWriteAccess }) => (
           <div key={project.id} onClick={() => handleSelectProject(project)} className={`bg-white rounded-lg shadow-md hover:shadow-xl transition-all cursor-pointer flex flex-col border-l-4 ${getScoreBorderColor(score)} relative overflow-hidden group`}>
             {/* Indicador de Permissão */}
@@ -375,13 +377,20 @@ const App: React.FC = () => {
     if (availableNavItems.length <= 1) return null;
 
     return (
-        <nav className="fixed bottom-0 left-0 right-0 w-full bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex justify-around items-center z-[100] min-h-[64px] h-auto border-t border-gray-200 pb-[env(safe-area-inset-bottom)]">
+        // MOBILE NAV FIXED CONTAINER
+        // z-[100] garante prioridade sobre mapas e gráficos
+        // pb-safe (env) garante que não cole na barra home do iPhone
+        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-stretch z-[100] shadow-[0_-4px_10px_rgba(0,0,0,0.1)] pb-[env(safe-area-inset-bottom)] h-[calc(60px+env(safe-area-inset-bottom))]">
           {availableNavItems.map(item => {
             const isActive = view === item.view || (item.view === 'SITES_LIST' && ['PROJECT_DASHBOARD', 'REPORT_FORM', 'REPORT_VIEW'].includes(view));
             return (
-              <button key={item.label} onClick={() => setView(item.view)} className={`flex flex-col items-center justify-center w-full py-2 transition-colors ${isActive ? 'text-blue-600' : 'text-gray-400 hover:text-blue-500'}`}>
-                <item.icon className="h-6 w-6 mb-1"/>
-                <span className="text-xs font-medium">{item.label}</span>
+              <button 
+                key={item.label} 
+                onClick={() => setView(item.view)} 
+                className={`flex flex-col items-center justify-center w-full transition-colors active:scale-95 ${isActive ? 'text-blue-600 bg-blue-50/50' : 'text-gray-400 hover:text-blue-500'}`}
+              >
+                <item.icon className={`h-6 w-6 mb-1 ${isActive ? 'stroke-[2px]' : ''}`}/>
+                <span className="text-[10px] font-bold uppercase tracking-wide">{item.label}</span>
               </button>
             )
           })}
@@ -399,10 +408,13 @@ const App: React.FC = () => {
   if (!session || !userProfile) return <AuthScreen appVersion={APP_VERSION} />;
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans">
+    <div className="min-h-screen bg-gray-50 font-sans flex flex-col">
       <Toast message={toastMessage} onClear={() => setToastMessage('')} />
       <Header />
-      <main className="p-4 md:p-8 pb-32 max-w-7xl mx-auto">
+      
+      {/* MAIN CONTAINER COM PADDING RESPONSIVO */}
+      {/* pb-24 garante que o conteúdo final não fique atrás do BottomNav */}
+      <main className="flex-grow p-4 md:p-8 pb-32 max-w-7xl mx-auto w-full">
         {renderContent()}
       </main>
       
@@ -411,7 +423,7 @@ const App: React.FC = () => {
       
       {/* MODAL DE ALTERAÇÃO DE SENHA */}
       {isChangePasswordOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[110] p-4">
               <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
                   <div className="flex justify-between items-center p-4 border-b">
                       <h3 className="text-lg font-bold text-gray-800 flex items-center">
@@ -429,7 +441,7 @@ const App: React.FC = () => {
                               type="password" 
                               value={newPassword} 
                               onChange={e => setNewPassword(e.target.value)}
-                              className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
+                              className="mt-1 block w-full p-2 border border-gray-300 rounded-md text-base"
                               placeholder="Mínimo 6 caracteres"
                               required 
                           />
@@ -440,7 +452,7 @@ const App: React.FC = () => {
                               type="password" 
                               value={confirmPassword} 
                               onChange={e => setConfirmPassword(e.target.value)}
-                              className="mt-1 block w-full p-2 border border-gray-300 rounded-md"
+                              className="mt-1 block w-full p-2 border border-gray-300 rounded-md text-base"
                               placeholder="Repita a nova senha"
                               required 
                           />

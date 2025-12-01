@@ -497,7 +497,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
             )}
         </div>
 
-      <div className="fixed bottom-16 left-0 right-0 bg-white shadow-[0_-2px_5px_rgba(0,0,0,0.1)] flex justify-around p-2 z-50 border-t">
+      <div className="fixed bottom-16 left-0 right-0 bg-white shadow-[0_-2px_5px_rgba(0,0,0,0.1)] flex justify-around p-2 z-50 border-t pb-[env(safe-area-inset-bottom)]">
         {CHECKLIST_DEFINITIONS.map(cat => {
             const isActive = activeCategoryId === cat.id;
             return (
@@ -513,7 +513,8 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
         </button>
       </div>
       
-      <div className="fixed bottom-0 left-0 right-0 bg-gray-100 p-3 flex flex-col sm:flex-row justify-end items-center gap-3 border-t-2 z-[51] h-auto sm:h-16">
+      {/* AJUSTE MOBILE: Adicionado pb-[env(safe-area-inset-bottom)] e altura auto para evitar corte de botão */}
+      <div className="fixed bottom-0 left-0 right-0 bg-gray-100 p-3 flex flex-col sm:flex-row justify-end items-center gap-3 border-t-2 z-[51] h-auto min-h-[64px] pb-[env(safe-area-inset-bottom)] pt-2">
         <button onClick={onCancel} className="w-full sm:w-auto px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 font-semibold">Cancelar</button>
         <button onClick={() => handleSubmit('Draft')} disabled={isReadOnly || saving} className="w-full sm:w-auto flex justify-center items-center px-4 py-2 text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 font-semibold disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed">
             <PaperAirplaneIcon className="h-5 w-5 mr-2"/>

@@ -371,11 +371,13 @@ const App: React.FC = () => {
     if (availableNavItems.length <= 1) return null;
 
     return (
-        <nav className="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex justify-around items-center z-50 h-16 border-t border-gray-200">
+        // AJUSTE MOBILE: Adicionado pb-[env(safe-area-inset-bottom)] para iPhone/Android Gestures
+        // Alterado h-16 para min-h-[64px] h-auto para permitir expansão se necessário
+        <nav className="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex justify-around items-center z-50 min-h-[64px] h-auto border-t border-gray-200 pb-[env(safe-area-inset-bottom)]">
           {availableNavItems.map(item => {
             const isActive = view === item.view || (item.view === 'SITES_LIST' && ['PROJECT_DASHBOARD', 'REPORT_FORM', 'REPORT_VIEW'].includes(view));
             return (
-              <button key={item.label} onClick={() => setView(item.view)} className={`flex flex-col items-center justify-center w-full h-full transition-colors ${isActive ? 'text-blue-600' : 'text-gray-400 hover:text-blue-500'}`}>
+              <button key={item.label} onClick={() => setView(item.view)} className={`flex flex-col items-center justify-center w-full py-2 transition-colors ${isActive ? 'text-blue-600' : 'text-gray-400 hover:text-blue-500'}`}>
                 <item.icon className="h-6 w-6 mb-1"/>
                 <span className="text-xs font-medium">{item.label}</span>
               </button>
@@ -398,7 +400,7 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-gray-50 font-sans">
       <Toast message={toastMessage} onClear={() => setToastMessage('')} />
       <Header />
-      <main className="p-4 md:p-8 pb-24 max-w-7xl mx-auto">
+      <main className="p-4 md:p-8 pb-32 max-w-7xl mx-auto">
         {renderContent()}
       </main>
       <BottomNav/>

@@ -363,7 +363,8 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
   const canSignManager = !isReadOnly && (userProfile.role === 'manager' || userProfile.role === 'admin');
 
   return (
-    <div className="bg-white pb-32">
+    <div className="bg-white pb-64"> 
+        {/* Aumentado pb-48 para pb-64 para garantir espaço de sobra em mobile */}
         <div className="p-4 sm:p-6 min-h-[calc(100vh-200px)]">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <h2 className="text-2xl font-bold text-gray-800">{existingReport ? 'Editar Relatório' : 'Novo Relatório de Inspeção'}</h2>
@@ -497,30 +498,31 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
             )}
         </div>
 
-      <div className="fixed bottom-16 left-0 right-0 bg-white shadow-[0_-2px_5px_rgba(0,0,0,0.1)] flex justify-around p-2 z-50 border-t pb-[env(safe-area-inset-bottom)]">
+      {/* BARRA DE CATEGORIAS - POSICIONADA ACIMA DA BARRA DE AÇÃO */}
+      <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-0 right-0 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.1)] flex justify-around p-2 z-[50] border-t border-gray-100">
         {CHECKLIST_DEFINITIONS.map(cat => {
             const isActive = activeCategoryId === cat.id;
             return (
-                <button key={cat.id} onClick={() => setActiveCategoryId(cat.id)} className={`flex flex-col items-center w-16 transition-colors ${isActive ? categoryColors[cat.id] : 'text-gray-500 hover:text-blue-600'}`}>
+                <button key={cat.id} onClick={() => setActiveCategoryId(cat.id)} className={`flex flex-col items-center w-16 transition-colors ${isActive ? categoryColors[cat.id] : 'text-gray-400 hover:text-blue-600'}`}>
                     {React.createElement(categoryIcons[cat.id] || CubeTransparentIcon, {className: "h-6 w-6 mb-1"})}
-                    <span className="text-xs text-center leading-tight font-medium">{cat.title.split(' ')[0]}</span>
+                    <span className="text-[10px] text-center leading-tight font-medium uppercase">{cat.title.split(' ')[0]}</span>
                 </button>
             )
         })}
-        <button onClick={() => setActiveCategoryId('signatures')} className={`flex flex-col items-center w-16 transition-colors ${activeCategoryId === 'signatures' ? categoryColors['signatures'] : 'text-gray-500 hover:text-blue-600'}`}>
+        <button onClick={() => setActiveCategoryId('signatures')} className={`flex flex-col items-center w-16 transition-colors ${activeCategoryId === 'signatures' ? categoryColors['signatures'] : 'text-gray-400 hover:text-blue-600'}`}>
           <DocumentCheckIcon className="h-6 w-6 mb-1"/>
-          <span className="text-xs font-medium">Assinar</span>
+          <span className="text-[10px] font-medium uppercase">Assinar</span>
         </button>
       </div>
       
-      {/* AJUSTE MOBILE: Adicionado pb-[env(safe-area-inset-bottom)] e altura auto para evitar corte de botão */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gray-100 p-3 flex flex-col sm:flex-row justify-end items-center gap-3 border-t-2 z-[51] h-auto min-h-[64px] pb-[env(safe-area-inset-bottom)] pt-2">
-        <button onClick={onCancel} className="w-full sm:w-auto px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 font-semibold">Cancelar</button>
-        <button onClick={() => handleSubmit('Draft')} disabled={isReadOnly || saving} className="w-full sm:w-auto flex justify-center items-center px-4 py-2 text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 font-semibold disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed">
+      {/* BARRA DE AÇÃO PRINCIPAL - RODAPÉ FIXO */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white p-3 flex flex-col sm:flex-row justify-end items-center gap-3 border-t-2 border-gray-200 z-[51] h-auto min-h-[80px] pb-[env(safe-area-inset-bottom)] pt-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+        <button onClick={onCancel} className="w-full sm:w-auto px-4 py-3 sm:py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-bold shadow-sm">Cancelar</button>
+        <button onClick={() => handleSubmit('Draft')} disabled={isReadOnly || saving} className="w-full sm:w-auto flex justify-center items-center px-4 py-3 sm:py-2 text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 font-bold disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed shadow-sm">
             <PaperAirplaneIcon className="h-5 w-5 mr-2"/>
             {saving ? 'Salvando...' : 'Salvar Rascunho'}
         </button>
-        <button onClick={() => handleSubmit('Completed')} disabled={isReadOnly || saving || !isAllItemsAnswered || !areActionPlansValid} className="w-full sm:w-auto flex justify-center items-center px-4 py-2 text-white bg-green-600 rounded-md hover:bg-green-700 font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed">
+        <button onClick={() => handleSubmit('Completed')} disabled={isReadOnly || saving || !isAllItemsAnswered || !areActionPlansValid} className="w-full sm:w-auto flex justify-center items-center px-4 py-3 sm:py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 font-bold disabled:bg-gray-400 disabled:cursor-not-allowed shadow-md">
             <CheckIcon className="h-5 w-5 mr-2"/>
             {saving ? 'Enviando...' : 'Concluir e Enviar'}
         </button>

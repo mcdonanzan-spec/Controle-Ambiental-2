@@ -3,7 +3,11 @@ import React, { useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { LogoIcon } from './icons';
 
-const AuthScreen: React.FC = () => {
+interface AuthScreenProps {
+    appVersion?: string;
+}
+
+const AuthScreen: React.FC<AuthScreenProps> = ({ appVersion }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -149,6 +153,11 @@ const AuthScreen: React.FC = () => {
                 {isSignUp ? 'Já tem uma conta? Entre' : 'Criar nova conta'}
               </button>
             </div>
+            {appVersion && (
+                <div className="mt-8 text-center">
+                    <span className="text-xs text-gray-400 font-mono">System Version: {appVersion}</span>
+                </div>
+            )}
           </div>
         </div>
       </div>

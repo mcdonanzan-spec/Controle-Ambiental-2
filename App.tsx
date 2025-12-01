@@ -15,6 +15,9 @@ import { LogoIcon, BuildingOfficeIcon, ChartPieIcon, ArrowLeftIcon, WrenchScrewd
 
 type View = 'SITES_LIST' | 'PROJECT_DASHBOARD' | 'REPORT_FORM' | 'REPORT_VIEW' | 'MANAGEMENT_DASHBOARD' | 'PENDING_ACTIONS' | 'ADMIN_PANEL';
 
+// VERSÃO DO SISTEMA (Para controle de atualização)
+const APP_VERSION = "v2.5";
+
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -216,6 +219,7 @@ const App: React.FC = () => {
         {title}
       </div>
       <div className="flex items-center gap-2">
+          <div className="text-[10px] text-gray-400 font-mono hidden md:block">{APP_VERSION}</div>
           <button 
             onClick={() => setIsChangePasswordOpen(true)}
             className="text-gray-500 hover:text-blue-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
@@ -360,7 +364,7 @@ const App: React.FC = () => {
 
     const navItems: { view: View; label: string; icon: React.FC<React.SVGProps<SVGSVGElement>>; roles: string[] }[] = [
       { view: 'SITES_LIST', label: 'Obras', icon: BuildingOfficeIcon, roles: ['admin', 'executive', 'manager', 'assistant'] },
-      { view: 'MANAGEMENT_DASHBOARD', label: 'Gerencial', icon: ChartPieIcon, roles: ['admin', 'executive', 'manager', 'assistant'] }, // Liberado para todos verem o global
+      { view: 'MANAGEMENT_DASHBOARD', label: 'Gerencial', icon: ChartPieIcon, roles: ['admin', 'executive', 'manager', 'assistant'] }, 
       { view: 'ADMIN_PANEL', label: 'Admin', icon: WrenchScrewdriverIcon, roles: ['admin'] },
     ];
     
@@ -371,9 +375,7 @@ const App: React.FC = () => {
     if (availableNavItems.length <= 1) return null;
 
     return (
-        // AJUSTE MOBILE: Adicionado pb-[env(safe-area-inset-bottom)] para iPhone/Android Gestures
-        // Alterado h-16 para min-h-[64px] h-auto para permitir expansão se necessário
-        <nav className="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex justify-around items-center z-50 min-h-[64px] h-auto border-t border-gray-200 pb-[env(safe-area-inset-bottom)]">
+        <nav className="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex justify-around items-center z-[40] min-h-[64px] h-auto border-t border-gray-200 pb-[env(safe-area-inset-bottom)]">
           {availableNavItems.map(item => {
             const isActive = view === item.view || (item.view === 'SITES_LIST' && ['PROJECT_DASHBOARD', 'REPORT_FORM', 'REPORT_VIEW'].includes(view));
             return (
@@ -394,7 +396,7 @@ const App: React.FC = () => {
       </div>
   );
   
-  if (!session || !userProfile) return <AuthScreen />;
+  if (!session || !userProfile) return <AuthScreen appVersion={APP_VERSION} />;
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
@@ -403,7 +405,9 @@ const App: React.FC = () => {
       <main className="p-4 md:p-8 pb-32 max-w-7xl mx-auto">
         {renderContent()}
       </main>
-      <BottomNav/>
+      
+      {/* Esconde o BottomNav se estiver no ReportForm, pois ele tem sua própria navegação */}
+      {view !== 'REPORT_FORM' && <BottomNav/>}
       
       {/* MODAL DE ALTERAÇÃO DE SENHA */}
       {isChangePasswordOpen && (

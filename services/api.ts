@@ -243,7 +243,10 @@ export const getNewReportTemplate = (projectId: string) => {
 export const uploadPhoto = async (file: File): Promise<string | null> => {
   const fileExt = file.name.split('.').pop();
   const fileName = `${Math.random()}.${fileExt}`;
-  const filePath = `${fileName}`;
+  
+  // Sanitizar nome do arquivo para evitar caracteres especiais
+  const safeFileName = fileName.replace(/[^a-zA-Z0-9.]/g, '_');
+  const filePath = `${safeFileName}`;
 
   const { error: uploadError } = await supabase.storage
     .from('inspection-photos')

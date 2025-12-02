@@ -483,9 +483,14 @@ Por favor, acesse e realize suas inspeções.
                                                 const isSelected = userProjects.includes(p.id);
                                                 return (
                                                     <label key={p.id} className="flex items-center space-x-3 p-2 hover:bg-gray-100 rounded cursor-pointer">
-                                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300'}`}>
-                                                            {isSelected && <CheckIcon className="h-3.5 w-3.5 text-white" />}
-                                                            <input type="checkbox" className="hidden" checked={isSelected} onChange={() => toggleProjectForUser(p.id)} />
+                                                        <div className="w-5 h-5 rounded border flex items-center justify-center transition-colors bg-white border-gray-300">
+                                                            {/* Checkbox controlado */}
+                                                            <input 
+                                                              type="checkbox" 
+                                                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" 
+                                                              checked={isSelected} 
+                                                              onChange={() => toggleProjectForUser(p.id)} 
+                                                            />
                                                         </div>
                                                         <div>
                                                             <span className={`block text-sm ${isSelected ? 'font-bold text-gray-800' : 'text-gray-600'}`}>{p.name}</span>

@@ -291,84 +291,28 @@ export const deleteUserProfile = async (userId: string): Promise<void> => {
 }
 
 export const createUserAccount = async (userData: {email: string, password: string, name: string, role: string, projectIds: string[]}) => {
-    const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-    const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
     
-    // Cliente isolado para criação de Auth
-    const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
-        auth: {
-            persistSession: false, 
-            autoRefreshToken: false,
-            detectSessionInUrl: false,
-            storage: {
-                getItem: () => null,
-                setItem: () => {},
-                removeItem: () => {},
-            }
-        }
-    });
-
-    let userId = '';
-
-    // 1. Tentar criar o usuário no Auth
-    const { data, error } = await tempClient.auth.signUp({
-        email: userData.email,
-        password: userData.password,
-        options: {
-            data: {
-                full_name: userData.name
-            }
-        }
+    // USANDO A NOVA SUPER FUNÇÃO RPC
+    // Isso cria Login + Identity + Profile de uma vez só, já confirmado.
+    // Evita problemas de email não confirmado e configs do painel.
+    
+    const { data, error } = await supabase.rpc('create_user_complete', {
+        email_input: userData.email,
+        password_input: userData.password,
+        full_name_input: userData.name,
+        role_input: userData.role,
+        projects_input: userData.projectIds
     });
 
     if (error) {
-        // Lógica de "Auto-Cura": Se o usuário já existe no Auth, tentamos apenas recriar o perfil.
-        // O erro comum é "User already registered"
-        if (error.message.includes('already registered')) {
-             console.warn("Usuário já existe no Auth, tentando recuperar/recriar perfil...");
-             // Tenta fazer login com a senha fornecida para pegar o ID (já que signUp falhou)
-             const { data: loginData, error: loginError } = await tempClient.auth.signInWithPassword({
-                 email: userData.email,
-                 password: userData.password
-             });
-             
-             if (loginError) {
-                 throw new Error("Este e-mail já existe com outra senha. Exclua-o completamente usando a Lixeira antes de recriar.");
-             }
-             
-             if (loginData.user) {
-                 userId = loginData.user.id;
-             }
-        } else {
-            throw error;
+        console.error("Erro RPC create_user_complete:", error);
+        if (error.message?.includes('already exists') || error.message?.includes('já cadastrado')) {
+            throw new Error("Este e-mail já está cadastrado no sistema.");
         }
-    } else if (data.user) {
-        userId = data.user.id;
-    }
-
-    if (!userId) throw new Error("Falha crítica ao obter ID do usuário.");
-
-    // Aguarda propagação
-    await new Promise(r => setTimeout(r, 1000));
-
-    // 2. Criar ou Atualizar (Upsert) o perfil
-    const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert({
-            id: userId,
-            email: userData.email,
-            full_name: userData.name,
-            role: userData.role,
-            assigned_project_ids: userData.projectIds
-        }, { onConflict: 'id' });
-
-    if (profileError) {
-        console.error("Erro ao criar perfil:", profileError);
-        // Mensagem amigável para erro de RLS
-        if (profileError.message.includes('row-level security')) {
-            throw new Error("ERRO DE PERMISSÃO: Você precisa rodar o SCRIPT SQL de atualização no Supabase para liberar o cadastro.");
+        if (error.message?.includes('permission') || error.message?.includes('find function')) {
+            throw new Error("ERRO CRÍTICO: Você precisa rodar o SCRIPT SQL 'create_user_complete' no Supabase para habilitar essa função.");
         }
-        throw new Error(`Falha no Perfil: ${profileError.message}`);
+        throw new Error(`Falha ao criar usuário: ${error.message}`);
     }
 
     return { email: userData.email, password: userData.password };

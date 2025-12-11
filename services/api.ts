@@ -88,6 +88,13 @@ export const getReports = async (): Promise<Report[]> => {
   }));
 };
 
+// --- FUNÇÃO PARA RESETAR RELATÓRIOS ---
+export const deleteAllReports = async (): Promise<void> => {
+    // Exclui todos os relatórios. O filtro neq é necessário para permitir o delete sem filtro específico (segurança do Supabase)
+    const { error } = await supabase.from('reports').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    if (error) throw error;
+};
+
 const calculateScores = (results: InspectionItemResult[]) => {
     const categoryScores: { [categoryId: string]: number } = {};
     let totalScore = 0;

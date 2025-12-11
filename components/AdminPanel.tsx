@@ -1,8 +1,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { Project, UserProfile } from '../types';
-import { createProject, updateProject, deleteProject, getAllProfiles, updateUserProfile, deleteUserCompletely, createUserAccount } from '../services/api';
-import { BuildingOfficeIcon, UserCircleIcon, PlusIcon, PencilIcon, TrashIcon, CheckIcon, XMarkIcon, DocumentCheckIcon, ExclamationTriangleIcon } from './icons';
+import { createProject, updateProject, deleteProject, getAllProfiles, updateUserProfile, deleteUserCompletely, createUserAccount, deleteAllReports } from '../services/api';
+import { BuildingOfficeIcon, UserCircleIcon, PlusIcon, PencilIcon, TrashIcon, CheckIcon, XMarkIcon, DocumentCheckIcon, ExclamationTriangleIcon, WrenchScrewdriverIcon } from './icons';
 
 interface AdminPanelProps {
     projects: Project[];
@@ -12,7 +12,7 @@ interface AdminPanelProps {
 const AdminPanel: React.FC<AdminPanelProps> = ({ projects, onProjectCreated }) => {
     const [profiles, setProfiles] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState<'users' | 'projects'>('users');
+    const [activeTab, setActiveTab] = useState<'users' | 'projects' | 'settings'>('users');
     
     // State para Nova/Edição de Obra
     const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -95,6 +95,24 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ projects, onProjectCreated }) =
             setLoading(false);
         }
     };
+
+    // --- Lógica de Reset Geral ---
+    const handleResetSystem = async () => {
+        if (!window.confirm("ATENÇÃO: Você está prestes a APAGAR TODOS OS RELATÓRIOS DO SISTEMA.\n\nEssa ação é irreversível e excluirá todo o histórico de inspeções, fotos e assinaturas.\n\nObras e Usuários serão mantidos.\n\nDeseja continuar?")) return;
+        
+        if (!window.confirm("CONFIRMAÇÃO FINAL: Tem certeza absoluta? Todos os dados de vistoria serão perdidos para sempre.")) return;
+    
+        setLoading(true);
+        try {
+            await deleteAllReports();
+            alert("Sistema resetado com sucesso! Todos os relatórios foram excluídos.");
+            onProjectCreated(); // Atualiza a lista geral
+        } catch (error: any) {
+            alert("Erro ao resetar sistema: " + error.message);
+        } finally {
+            setLoading(false);
+        }
+    }
 
     // --- Lógica de Usuários ---
 
@@ -228,24 +246,30 @@ Por favor, acesse e realize suas inspeções.
         <div className="animate-fade-in space-y-6 pb-20">
             <h1 className="text-3xl font-bold text-gray-800">Painel Administrativo</h1>
             
-            <div className="flex space-x-1 border-b border-gray-200">
+            <div className="flex space-x-1 border-b border-gray-200 overflow-x-auto">
                 <button 
-                    className={`pb-2 px-6 font-semibold transition-colors ${activeTab === 'users' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`pb-2 px-6 font-semibold transition-colors whitespace-nowrap ${activeTab === 'users' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
                     onClick={() => setActiveTab('users')}
                 >
                     Gestão de Usuários
                 </button>
                 <button 
-                    className={`pb-2 px-6 font-semibold transition-colors ${activeTab === 'projects' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`pb-2 px-6 font-semibold transition-colors whitespace-nowrap ${activeTab === 'projects' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
                     onClick={() => setActiveTab('projects')}
                 >
                     Gestão de Obras
+                </button>
+                <button 
+                    className={`pb-2 px-6 font-semibold transition-colors whitespace-nowrap ${activeTab === 'settings' ? 'border-b-2 border-red-500 text-red-600' : 'text-gray-500 hover:text-red-600'}`}
+                    onClick={() => setActiveTab('settings')}
+                >
+                    Configurações
                 </button>
             </div>
 
             {/* --- ABA OBRAS --- */}
             {activeTab === 'projects' && (
-                <div className="space-y-8">
+                <div className="space-y-8 animate-fade-in">
                     {/* Formulário (Card Superior) */}
                     <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
                         <h2 className="text-xl font-bold mb-4 flex items-center text-gray-800">
@@ -302,14 +326,52 @@ Por favor, acesse e realize suas inspeções.
                     </div>
                 </div>
             )}
+            
+            {/* --- ABA CONFIGURAÇÕES (SYSTEM) --- */}
+            {activeTab === 'settings' && (
+                <div className="space-y-6 animate-fade-in">
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-6 shadow-sm">
+                        <h3 className="text-xl font-bold text-red-800 flex items-center mb-4">
+                            <ExclamationTriangleIcon className="h-8 w-8 mr-3"/>
+                            Zona de Perigo
+                        </h3>
+                        <p className="text-red-700 mb-6">
+                            As ações abaixo são destrutivas e afetam todo o sistema. Proceda com extrema cautela.
+                        </p>
+                        
+                        <div className="bg-white p-6 rounded border border-red-100 shadow-sm">
+                            <div className="flex items-start">
+                                <div className="bg-red-100 p-3 rounded-full mr-4 hidden sm:block">
+                                    <TrashIcon className="h-6 w-6 text-red-600"/>
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-gray-800 text-lg mb-2">Resetar Todas as Inspeções</h4>
+                                    <p className="text-sm text-gray-600 mb-4 max-w-2xl">
+                                        Esta ação irá excluir permanentemente <strong>todos os relatórios, fotos e assinaturas</strong> do banco de dados. 
+                                        As obras e usuários cadastrados serão mantidos, mas o histórico de conformidade será zerado (como se o sistema estivesse começando do zero).
+                                    </p>
+                                    <button 
+                                        onClick={handleResetSystem}
+                                        disabled={loading}
+                                        className="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-lg font-bold shadow flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <TrashIcon className="h-5 w-5 mr-2"/>
+                                        {loading ? 'Processando...' : 'Apagar Tudo e Resetar Sistema'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* --- ABA USUÁRIOS --- */}
             {activeTab === 'users' && (
-                <div className="space-y-6">
+                <div className="space-y-6 animate-fade-in">
                      <div className="flex justify-between items-center bg-blue-50 p-4 rounded-lg border border-blue-100">
                          <div className="flex items-center text-sm text-blue-800">
-                            <ExclamationTriangleIcon className="h-5 w-5 mr-2 text-blue-600"/>
-                            <span>Dica: Agora você pode excluir usuários completamente (Login + Perfil) clicando na lixeira.</span>
+                            <WrenchScrewdriverIcon className="h-5 w-5 mr-2 text-blue-600"/>
+                            <span>Gerencie os acessos da equipe abaixo.</span>
                          </div>
                         <button onClick={() => openUserModal()} className="flex items-center bg-green-600 text-white px-4 py-2 rounded-md shadow hover:bg-green-700 font-bold">
                             <PlusIcon className="h-5 w-5 mr-2" /> Novo Usuário

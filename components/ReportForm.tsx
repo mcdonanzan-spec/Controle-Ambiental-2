@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Project, Report, InspectionStatus, ChecklistItem, InspectionItemResult, Photo, ActionPlan, UserProfile } from '../types';
 import { CHECKLIST_DEFINITIONS } from '../constants';
@@ -363,8 +364,8 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
 
   return (
     <div className="bg-white min-h-[100dvh] flex flex-col relative"> 
-        {/* CONTEÚDO PRINCIPAL - PADDING INFERIOR MASSIVO PARA SCROLL */}
-        <div className="p-4 sm:p-6 pb-[200px]">
+        {/* CONTEÚDO PRINCIPAL - PADDING INFERIOR AUMENTADO PARA 450px PARA GARANTIR SCROLL SOBRE MENU FIXO */}
+        <div className="p-4 sm:p-6 pb-[450px]">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <h2 className="text-2xl font-bold text-gray-800">{existingReport ? 'Editar Relatório' : 'Novo Relatório'}</h2>
                 
@@ -491,6 +492,9 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                     )}
                 </div>
             )}
+            
+            {/* Espaçador Extra para garantir scroll no final */}
+            <div className="h-24 w-full"></div>
         </div>
 
       {/* STACKED BOTTOM BARS (Z-INDEX e POSITION FIXED CORRIGIDOS) */}

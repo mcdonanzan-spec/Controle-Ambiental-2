@@ -43,9 +43,9 @@ const TrendChart: React.FC<{ reports: Report[], projects: Project[] }> = ({ repo
 
         reports.forEach(report => {
             // USA DATA DE INSPEÇÃO (Se disponível) PARA O GRÁFICO HISTÓRICO
-            // Isso garante que o gráfico mostre quando a obra estava naquele estado, não quando o gerente assinou.
+            // Correção: Uso de string slice seguro para evitar problemas de timezone
             const refDate = report.inspectionDate || report.date;
-            const monthKey = new Date(refDate).toISOString().slice(0, 7); 
+            const monthKey = refDate.substring(0, 7); // YYYY-MM seguro
             
             if (!dataByMonth[monthKey]) {
                 dataByMonth[monthKey] = {};
@@ -58,9 +58,13 @@ const TrendChart: React.FC<{ reports: Report[], projects: Project[] }> = ({ repo
         });
 
         const formattedData = Object.keys(dataByMonth).map(monthKey => {
+            // Construção segura da data para exibição (Ano, Mês - 1)
+            const [year, month] = monthKey.split('-').map(Number);
+            const dateObj = new Date(year, month - 1, 2); // Dia 2 para evitar qualquer risco de rollback de timezone
+            
             const monthEntry: any = { 
                 month: monthKey,
-                displayMonth: new Date(monthKey + '-02').toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).toUpperCase()
+                displayMonth: dateObj.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).toUpperCase()
             };
 
             projects.forEach(project => {
@@ -151,7 +155,10 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
       reports.forEach(r => {
           // Usa inspectionDate se disponível
           const refDate = r.inspectionDate || r.date;
-          months.add(new Date(refDate).toISOString().slice(0, 7)); // YYYY-MM
+          // Correção: Uso de substring para garantir YYYY-MM exato sem conversão de timezone
+          if (refDate && refDate.length >= 7) {
+            months.add(refDate.substring(0, 7)); 
+          }
       });
       return Array.from(months).sort().reverse();
   }, [reports]);
@@ -165,18 +172,19 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
              // Se não for 'latest', pegamos apenas relatórios DO MÊS selecionado (Baseado na Vistoria)
              projectReports = projectReports.filter(r => {
                  const refDate = r.inspectionDate || r.date;
-                 return refDate.startsWith(selectedPeriod);
+                 // Correção: Comparação de string direta
+                 return refDate.substring(0, 7) === selectedPeriod;
              });
           }
 
           if (projectReports.length === 0) return null;
           
           // Retorna sempre o MAIS RECENTE dentro do escopo (Seja all-time ou dentro do mês específico)
-          // Ordena pela data da Vistoria para ser mais preciso
+          // Ordena pela data da Vistoria via string (ISO YYYY-MM-DD funciona perfeitamente para sort)
           return [...projectReports].sort((a, b) => {
-              const dateA = new Date(a.inspectionDate || a.date).getTime();
-              const dateB = new Date(b.inspectionDate || b.date).getTime();
-              return dateB - dateA;
+              const dateA = a.inspectionDate || a.date;
+              const dateB = b.inspectionDate || b.date;
+              return dateB.localeCompare(dateA);
           })[0];
       }).filter((r): r is Report => r !== null);
   }, [projects, reports, selectedPeriod]);
@@ -235,8 +243,9 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
 
   // Formatador de data para o dropdown
   const formatMonth = (isoMonth: string) => {
-      const [year, month] = isoMonth.split('-');
-      const date = new Date(parseInt(year), parseInt(month) - 1);
+      const [year, month] = isoMonth.split('-').map(Number);
+      // Data Local (Ano, Mês-1, Dia 2) para evitar bugs de timezone no dia 1
+      const date = new Date(year, month - 1, 2);
       return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
   }
 

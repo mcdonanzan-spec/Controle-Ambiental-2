@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LabelList, LineChart, Line, ReferenceArea } from 'recharts';
 import { Project, Report, InspectionStatus } from '../types';
 import { BuildingOfficeIcon, DocumentChartBarIcon, ExclamationTriangleIcon, ChartPieIcon, FunnelIcon, ClockIcon } from './icons';
@@ -10,6 +10,8 @@ interface DashboardProps {
   onSelectProject: (project: Project) => void;
   onNavigateToSites: () => void;
   onNavigateToPendingActions: () => void;
+  selectedPeriodProp: string;
+  onPeriodChange: (period: string) => void;
 }
 
 // --- CUSTOM TOOLTIP PARA O GRÁFICO DE TENDÊNCIA ---
@@ -19,7 +21,6 @@ const CustomTrendTooltip = ({ active, payload, label }: any) => {
             <div className="bg-white p-4 rounded-lg shadow-xl border border-gray-200 text-xs">
                 <p className="font-bold text-gray-800 mb-2 border-b pb-1">{label}</p>
                 {payload.map((entry: any, index: number) => {
-                    // Extrai metadados escondidos no payload original
                     const count = entry.payload[`${entry.dataKey}_count`] || 0;
                     return (
                         <div key={index} className="mb-2 last:mb-0">
@@ -125,9 +126,7 @@ const TrendChart: React.FC<{ reports: Report[], projects: Project[] }> = ({ repo
 };
 
 
-const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProject, onNavigateToSites, onNavigateToPendingActions }) => {
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('latest');
-
+const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProject, onNavigateToSites, onNavigateToPendingActions, selectedPeriodProp, onPeriodChange }) => {
   // 1. Identificar Meses Disponíveis
   const availableMonths = useMemo(() => {
       const months = new Set<string>();
@@ -140,16 +139,14 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
       return Array.from(months).sort().reverse();
   }, [reports]);
 
-  // 2. Processamento dos Dados (Núcleo da Correção)
+  // 2. Processamento dos Dados
   const dashboardData = useMemo(() => {
       return projects.map(project => {
-          // Filtra relatórios da obra
           const projectReports = reports.filter(r => r.projectId === project.id);
-          
           let targetReports: Report[] = [];
 
-          if (selectedPeriod === 'latest') {
-             // Lógica: Apenas o MAIS RECENTE
+          if (selectedPeriodProp === 'latest') {
+             // Apenas o mais recente
              const sorted = [...projectReports].sort((a, b) => {
                  const dateA = a.inspectionDate || a.date;
                  const dateB = b.inspectionDate || b.date;
@@ -157,36 +154,31 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
              });
              if (sorted.length > 0) targetReports = [sorted[0]];
           } else {
-             // Lógica: TODOS do mês (Média)
+             // Todos do mês
              targetReports = projectReports.filter(r => {
                  const refDate = r.inspectionDate || r.date;
-                 return refDate.substring(0, 7) === selectedPeriod;
+                 return refDate.substring(0, 7) === selectedPeriodProp;
              });
           }
 
           if (targetReports.length === 0) return null;
 
-          // CÁLCULOS AGREGADOS
           const reportsCount = targetReports.length;
-          
-          // Média de Nota
           const sumScore = targetReports.reduce((acc, r) => acc + r.score, 0);
           const avgScore = Math.round(sumScore / reportsCount);
 
-          // Total de NCs (Soma, pois é acumulativo no período)
           const totalNCs = targetReports.reduce((acc, r) => {
               const ncsInReport = r.results.filter(res => res.status === InspectionStatus.NC).length;
               return acc + ncsInReport;
           }, 0);
 
-          // Contagem de Itens Conform/Não Conforme (Para Gráfico de Pizza Global)
           const itemsC = targetReports.reduce((acc, r) => acc + r.results.filter(i => i.status === InspectionStatus.C).length, 0);
           const itemsNC = targetReports.reduce((acc, r) => acc + r.results.filter(i => i.status === InspectionStatus.NC).length, 0);
 
           return {
               name: project.name,
               project: project,
-              score: avgScore, // Média ou Nota Única
+              score: avgScore,
               pendingActions: totalNCs,
               reportCount: reportsCount,
               itemsC,
@@ -194,19 +186,16 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
           };
 
       }).filter(item => item !== null);
-  }, [projects, reports, selectedPeriod]);
+  }, [projects, reports, selectedPeriodProp]);
 
-  // 3. Totais Globais para os Cards
+  // 3. Totais Globais
   const totalProjectsWithData = dashboardData.length;
-  
   const totalPendingActions = dashboardData.reduce((sum, item) => sum + item.pendingActions, 0);
   
-  // Média Geral da Empresa (Média das médias das obras)
   const averageCompanyScore = totalProjectsWithData > 0 
     ? Math.round(dashboardData.reduce((sum, item) => sum + item.score, 0) / totalProjectsWithData)
     : 0;
 
-  // 4. Dados para o Gráfico de Pizza (Agregado de todas as obras filtradas)
   const totalItemsC = dashboardData.reduce((sum, item) => sum + item.itemsC, 0);
   const totalItemsNC = dashboardData.reduce((sum, item) => sum + item.itemsNC, 0);
 
@@ -231,7 +220,6 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
       return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
   }
 
-  // Preparar dados para o BarChart (Mapeamento simples)
   const barChartData = dashboardData.map(d => ({
       name: d.name,
       'Pontuação (%)': d.score,
@@ -255,8 +243,8 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                     <FunnelIcon className="h-3 w-3 mr-1"/> Período de Análise
                 </label>
                 <select 
-                    value={selectedPeriod} 
-                    onChange={(e) => setSelectedPeriod(e.target.value)}
+                    value={selectedPeriodProp} 
+                    onChange={(e) => onPeriodChange(e.target.value)}
                     className="bg-white border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-64 p-2.5 shadow-sm font-medium"
                 >
                     <option value="latest">📌 VISÃO ATUAL (Última Inspeção)</option>
@@ -273,18 +261,18 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
       </div>
       
       {/* BANNER DE MODO HISTÓRICO */}
-      {selectedPeriod !== 'latest' && (
+      {selectedPeriodProp !== 'latest' && (
           <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r shadow-sm flex items-start animate-fade-in no-print">
               <ClockIcon className="h-6 w-6 text-yellow-600 mr-3 flex-shrink-0"/>
               <div>
                   <h3 className="text-sm font-bold text-yellow-800 uppercase">Modo de Análise Consolidada</h3>
                   <p className="text-sm text-yellow-700">
-                      Visualizando média de desempenho de <strong>{formatMonth(selectedPeriod)}</strong>. 
+                      Visualizando média de desempenho de <strong>{formatMonth(selectedPeriodProp)}</strong>. 
                       Os valores representam a média de todas as inspeções realizadas neste mês.
                   </p>
               </div>
               <button 
-                onClick={() => setSelectedPeriod('latest')}
+                onClick={() => onPeriodChange('latest')}
                 className="ml-auto text-xs bg-yellow-200 hover:bg-yellow-300 text-yellow-900 px-3 py-1 rounded font-bold"
               >
                   VOLTAR PARA HOJE
@@ -312,7 +300,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                     <DocumentChartBarIcon className="h-8 w-8 text-green-600"/>
                 </div>
                 <div>
-                    <p className="text-sm font-medium text-gray-500">Nota Média {selectedPeriod !== 'latest' && '(Mensal)'}</p>
+                    <p className="text-sm font-medium text-gray-500">Nota Média {selectedPeriodProp !== 'latest' && '(Mensal)'}</p>
                     <p className={`text-2xl font-bold ${averageCompanyScore >= 90 ? 'text-green-600' : averageCompanyScore >= 70 ? 'text-blue-600' : 'text-yellow-600'}`}>
                         {averageCompanyScore}%
                     </p>
@@ -320,7 +308,8 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
             </div>
         </div>
 
-        <div onClick={onNavigateToPendingActions} className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between transition-all group cursor-pointer hover:shadow-md">
+        {/* Card de NCs CORRIGIDO: Botão sempre visível */}
+        <div onClick={onNavigateToPendingActions} className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between transition-all group cursor-pointer hover:shadow-md relative">
             <div className="flex items-center space-x-4">
                 <div className={`p-3 rounded-lg transition-colors ${totalPendingActions > 0 ? 'bg-red-50 group-hover:bg-red-100' : 'bg-gray-50'}`}>
                     <ExclamationTriangleIcon className={`h-8 w-8 ${totalPendingActions > 0 ? 'text-red-600' : 'text-gray-400'}`}/>
@@ -330,6 +319,10 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                     <p className="text-2xl font-bold text-gray-800">{totalPendingActions}</p>
                 </div>
             </div>
+            {/* Botão de Ver Detalhes sempre presente, mas com estilo diferente se for 0 */}
+            <div className={`absolute top-6 right-6 text-xs font-semibold px-2 py-1 rounded no-print ${totalPendingActions > 0 ? 'bg-red-50 text-red-600 group-hover:bg-red-100' : 'bg-gray-100 text-gray-400'}`}>
+                 {totalPendingActions > 0 ? 'Ver Detalhes' : 'Ver Histórico'}
+            </div>
         </div>
       </div>
 
@@ -337,7 +330,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
         {/* BAR CHART */}
         <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-md border border-gray-100">
           <div className="mb-6">
-            <h2 className="text-lg font-bold text-gray-700">Ranking de Desempenho {selectedPeriod !== 'latest' && <span className="text-yellow-600">(Média do Mês)</span>}</h2>
+            <h2 className="text-lg font-bold text-gray-700">Ranking de Desempenho {selectedPeriodProp !== 'latest' && <span className="text-yellow-600">(Média do Mês)</span>}</h2>
             <p className="text-xs text-gray-500 mt-1 no-print">Comparativo entre obras baseado no período selecionado.</p>
           </div>
           
@@ -433,7 +426,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
         </div>
       </div>
       
-      {/* TREND CHART - Sempre mostra o histórico completo para contexto */}
+      {/* TREND CHART */}
       <div className="bg-white p-6 rounded-lg shadow-md border border-gray-100 page-break-inside-avoid">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-2">
             <div>

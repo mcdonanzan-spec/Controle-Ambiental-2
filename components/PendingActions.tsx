@@ -1,61 +1,88 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Project, Report, InspectionStatus } from '../types';
 import { CHECKLIST_DEFINITIONS } from '../constants';
-import { ArrowLeftIcon, ExclamationTriangleIcon, ClockIcon, UserCircleIcon, WrenchScrewdriverIcon } from './icons';
+import { ArrowLeftIcon, ExclamationTriangleIcon, ClockIcon, UserCircleIcon, WrenchScrewdriverIcon, BuildingOfficeIcon } from './icons';
 
 interface PendingActionsProps {
   projects: Project[];
   reports: Report[];
   onNavigateToReportItem: (report: Report, categoryId: string) => void;
   onBack: () => void;
+  selectedPeriod: string; // Contexto vindo do Dashboard
 }
 
-const PendingActions: React.FC<PendingActionsProps> = ({ projects, reports, onNavigateToReportItem, onBack }) => {
-  const [filterProjectId, setFilterProjectId] = useState<string>('all');
+const PendingActions: React.FC<PendingActionsProps> = ({ projects, reports, onNavigateToReportItem, onBack, selectedPeriod }) => {
 
-  const pendingItems = useMemo(() => {
-    // Para consistência com o Dashboard Gerencial, consideramos apenas pendências do checklist MAIS RECENTE de cada obra.
-    
-    const latestReports = projects.map(project => {
-        const projectReports = reports.filter(r => r.projectId === project.id);
-        if (projectReports.length === 0) return null;
-        return [...projectReports].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-    }).filter((r): r is Report => r !== null);
+  // Lógica de Filtragem e Agrupamento
+  const groupedPendingItems = useMemo(() => {
+    // 1. Filtrar relatórios relevantes baseados no período
+    let relevantReports: Report[] = [];
 
-    return latestReports
-      .flatMap(report => {
+    if (selectedPeriod === 'latest') {
+        // Modo "Hoje": Pega apenas o ÚLTIMO relatório de cada obra
+        relevantReports = projects.map(project => {
+            const projectReports = reports.filter(r => r.projectId === project.id);
+            if (projectReports.length === 0) return null;
+            // Ordena e pega o primeiro
+            return [...projectReports].sort((a, b) => {
+                 const dateA = a.inspectionDate || a.date;
+                 const dateB = b.inspectionDate || b.date;
+                 return dateB.localeCompare(dateA);
+            })[0];
+        }).filter((r): r is Report => r !== null);
+    } else {
+        // Modo "Histórico": Pega TODOS os relatórios daquele mês
+        relevantReports = reports.filter(r => {
+            const refDate = r.inspectionDate || r.date;
+            return refDate.substring(0, 7) === selectedPeriod;
+        });
+    }
+
+    // 2. Extrair NCs desses relatórios
+    const allNCs = relevantReports.flatMap(report => {
         const project = projects.find(p => p.id === report.projectId);
         if (!project) return [];
 
-        // ALTERAÇÃO: Removemos o filtro (!result.actionPlan) para mostrar TUDO que é NC.
         return report.results
-          .filter(result => result.status === InspectionStatus.NC) 
-          .map(result => {
-            const itemDef = CHECKLIST_DEFINITIONS
-              .flatMap(c => c.subCategories.flatMap(sc => sc.items))
-              .find(i => i.id === result.itemId);
-            
-            const categoryDef = CHECKLIST_DEFINITIONS.find(cat => cat.subCategories.some(sc => sc.items.some(i => i.id === result.itemId)));
+            .filter(result => result.status === InspectionStatus.NC)
+            .map(result => {
+                const itemDef = CHECKLIST_DEFINITIONS
+                  .flatMap(c => c.subCategories.flatMap(sc => sc.items))
+                  .find(i => i.id === result.itemId);
+                
+                const categoryDef = CHECKLIST_DEFINITIONS.find(cat => cat.subCategories.some(sc => sc.items.some(i => i.id === result.itemId)));
 
-            return {
-              report,
-              project,
-              result,
-              itemText: itemDef?.text || 'Item não encontrado',
-              categoryId: categoryDef?.id || '',
-            };
-          });
-      })
-      .sort((a, b) => new Date(b.report.date).getTime() - new Date(a.report.date).getTime());
-  }, [reports, projects]);
+                return {
+                    id: `${report.id}-${result.itemId}`,
+                    report,
+                    project,
+                    result,
+                    itemText: itemDef?.text || 'Item não encontrado',
+                    categoryId: categoryDef?.id || '',
+                };
+            });
+    });
 
-  const filteredItems = useMemo(() => {
-    if (filterProjectId === 'all') {
-      return pendingItems;
-    }
-    return pendingItems.filter(item => item.project.id === filterProjectId);
-  }, [pendingItems, filterProjectId]);
+    // 3. Agrupar por Projeto
+    const grouped: { [projectId: string]: { project: Project, items: typeof allNCs } } = {};
+    
+    allNCs.forEach(item => {
+        if (!grouped[item.project.id]) {
+            grouped[item.project.id] = { project: item.project, items: [] };
+        }
+        grouped[item.project.id].items.push(item);
+    });
+
+    return Object.values(grouped).sort((a, b) => b.items.length - a.items.length); // Ordena obras com mais problemas primeiro
+
+  }, [reports, projects, selectedPeriod]);
+
+  const formatPeriod = (iso: string) => {
+      if (iso === 'latest') return 'Relatórios Vigentes (Atual)';
+      const [year, month] = iso.split('-').map(Number);
+      return new Date(year, month - 1, 2).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
+  }
 
   return (
     <div className="space-y-6 animate-fade-in pb-10">
@@ -64,131 +91,110 @@ const PendingActions: React.FC<PendingActionsProps> = ({ projects, reports, onNa
                 <ArrowLeftIcon className="h-4 w-4 mr-1" />
                 Voltar para Dashboard
             </button>
-            <h1 className="text-3xl font-bold text-gray-800">Central de Pendências Ambientais</h1>
-            <p className="text-md text-gray-500">
-                Monitoramento de todas as não conformidades ativas nos canteiros de obra.
+            <h1 className="text-3xl font-bold text-gray-800">
+                {selectedPeriod === 'latest' ? 'Central de Pendências Ativas' : 'Histórico de Não Conformidades'}
+            </h1>
+            <p className="text-md text-gray-500 flex items-center mt-1">
+                <ClockIcon className="h-4 w-4 mr-1 text-gray-400"/>
+                Exibindo dados referentes a: <strong className="ml-1 text-gray-800">{formatPeriod(selectedPeriod)}</strong>
             </p>
         </div>
 
-        <div className="bg-white p-4 rounded-lg shadow-md border border-gray-100">
-            <label htmlFor="project-filter" className="block text-sm font-bold text-gray-700 mb-1">Filtrar Visualização</label>
-            <select
-                id="project-filter"
-                value={filterProjectId}
-                onChange={(e) => setFilterProjectId(e.target.value)}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-            >
-                <option value="all">Todas as Obras ({pendingItems.length} pendências)</option>
-                {projects.map(p => {
-                    const count = pendingItems.filter(i => i.project.id === p.id).length;
-                    return <option key={p.id} value={p.id}>{p.name} ({count})</option>
-                })}
-            </select>
-        </div>
-
-        <div className="space-y-4">
-            {filteredItems.length === 0 ? (
-                 <div className="text-center py-20 bg-white rounded-lg shadow-md border border-gray-100">
-                    <div className="bg-green-100 text-green-600 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
-                        <ExclamationTriangleIcon className="h-10 w-10" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-800">Tudo Conforme!</h3>
-                    <p className="text-gray-500 mt-2">Nenhuma não conformidade encontrada nos relatórios vigentes.</p>
+        {groupedPendingItems.length === 0 ? (
+             <div className="text-center py-20 bg-white rounded-lg shadow-md border border-gray-100">
+                <div className="bg-green-100 text-green-600 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
+                    <ExclamationTriangleIcon className="h-10 w-10" />
                 </div>
-            ) : (
-                filteredItems.map(({ report, project, result, itemText, categoryId }, index) => {
-                    const hasActionPlan = result.actionPlan && result.actionPlan.actions;
-                    
-                    return (
-                        <div key={`${report.id}-${result.itemId}-${index}`} className="bg-white rounded-lg shadow-md border-l-8 border-red-500 overflow-hidden hover:shadow-lg transition-shadow">
-                            <div className="p-5">
-                                <div className="flex justify-between items-start gap-4">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
-                                                {project.name}
-                                            </span>
-                                            <span className="text-xs text-gray-400 font-medium flex items-center">
-                                                <ClockIcon className="h-3 w-3 mr-1"/>
-                                                Reportado em: {new Date(report.date).toLocaleDateString()}
-                                            </span>
-                                        </div>
-                                        <h3 className="font-bold text-gray-800 text-lg leading-snug">{itemText}</h3>
-                                        
-                                        {result.comment && (
-                                            <div className="mt-3 text-sm text-gray-700 bg-red-50 p-3 rounded-md border border-red-100">
-                                                <span className="font-bold text-red-800 block text-xs uppercase mb-1">Observação do Inspetor:</span>
-                                                "{result.comment}"
-                                            </div>
-                                        )}
-                                    </div>
-                                    
-                                    <button 
-                                        onClick={() => onNavigateToReportItem(report, categoryId)}
-                                        className="hidden sm:inline-flex bg-white border border-blue-500 text-blue-600 text-xs font-bold py-2 px-4 rounded-full hover:bg-blue-50 transition-colors whitespace-nowrap"
-                                    >
-                                        Ver no Relatório
-                                    </button>
+                <h3 className="text-xl font-bold text-gray-800">Tudo Conforme!</h3>
+                <p className="text-gray-500 mt-2">Nenhuma não conformidade encontrada nos relatórios deste período.</p>
+            </div>
+        ) : (
+            <div className="space-y-8">
+                {groupedPendingItems.map(group => (
+                    <div key={group.project.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        {/* Header da Obra */}
+                        <div className="bg-gray-50 p-4 border-b border-gray-200 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-blue-100 p-2 rounded-lg">
+                                    <BuildingOfficeIcon className="h-5 w-5 text-blue-700"/>
                                 </div>
-
-                                {/* Seção do Plano de Ação - Agora visível */}
-                                <div className="mt-5 pt-4 border-t border-gray-100">
-                                    {hasActionPlan ? (
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            <div className="md:col-span-2">
-                                                <p className="text-[10px] text-gray-400 uppercase font-bold mb-1 flex items-center">
-                                                    <WrenchScrewdriverIcon className="h-3 w-3 mr-1"/> Ação Corretiva Definida
-                                                </p>
-                                                <p className="text-sm font-semibold text-gray-800">{result.actionPlan!.actions}</p>
-                                            </div>
-                                            <div>
-                                                <div className="flex flex-col gap-2">
-                                                    <div>
-                                                        <p className="text-[10px] text-gray-400 uppercase font-bold mb-1 flex items-center">
-                                                            <UserCircleIcon className="h-3 w-3 mr-1"/> Responsável
-                                                        </p>
-                                                        <p className="text-sm font-medium text-blue-800 bg-blue-50 inline-block px-2 py-0.5 rounded border border-blue-100">
-                                                            {result.actionPlan!.responsible}
-                                                        </p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[10px] text-gray-400 uppercase font-bold mb-1 flex items-center text-red-400">
-                                                            <ClockIcon className="h-3 w-3 mr-1"/> Prazo Limite
-                                                        </p>
-                                                        <p className="text-sm font-bold text-red-700">
-                                                            {new Date(result.actionPlan!.deadline).toLocaleDateString()}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center justify-between bg-yellow-50 p-3 rounded text-yellow-800 text-sm font-medium border border-yellow-200">
-                                            <span className="flex items-center">
-                                                <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
-                                                Pendente de Plano de Ação!
-                                            </span>
-                                            <button 
-                                                onClick={() => onNavigateToReportItem(report, categoryId)}
-                                                className="underline hover:text-yellow-900"
-                                            >
-                                                Definir Agora
-                                            </button>
-                                        </div>
-                                    )}
+                                <div>
+                                    <h2 className="text-lg font-bold text-gray-800 leading-tight">{group.project.name}</h2>
+                                    <p className="text-xs text-gray-500">{group.items.length} apontamentos neste período</p>
                                 </div>
-                                <button 
-                                    onClick={() => onNavigateToReportItem(report, categoryId)}
-                                    className="sm:hidden mt-4 w-full bg-blue-500 text-white text-sm font-bold py-3 rounded-lg"
-                                >
-                                    Gerenciar Item
-                                </button>
                             </div>
                         </div>
-                    );
-                })
-            )}
-        </div>
+
+                        {/* Lista de NCs da Obra */}
+                        <div className="divide-y divide-gray-100">
+                            {group.items.map(({ id, report, result, itemText, categoryId }) => {
+                                const hasActionPlan = result.actionPlan && result.actionPlan.actions;
+                                return (
+                                    <div key={id} className="p-5 hover:bg-gray-50 transition-colors">
+                                        <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 border border-gray-200 px-2 rounded-full">
+                                                        Vistoria: {new Date(report.inspectionDate || report.date).toLocaleDateString()}
+                                                    </span>
+                                                    {selectedPeriod !== 'latest' && (
+                                                        <span className="text-[10px] bg-yellow-100 text-yellow-800 px-2 rounded-full font-bold">
+                                                            Registro Histórico
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                
+                                                <h3 className="font-bold text-gray-800 text-md mb-2">{itemText}</h3>
+                                                
+                                                {result.comment && (
+                                                    <div className="text-sm text-red-700 bg-red-50 p-3 rounded-md border-l-4 border-red-400 mb-3 italic">
+                                                        "{result.comment}"
+                                                    </div>
+                                                )}
+
+                                                {/* Plano de Ação */}
+                                                <div className="mt-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                                                    {hasActionPlan ? (
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                                                            <div>
+                                                                <span className="block font-bold text-gray-400 uppercase text-[10px]">Ação Corretiva</span>
+                                                                <span className="font-semibold text-gray-800">{result.actionPlan!.actions}</span>
+                                                            </div>
+                                                            <div className="flex justify-between sm:justify-start gap-4">
+                                                                <div>
+                                                                    <span className="block font-bold text-gray-400 uppercase text-[10px]">Responsável</span>
+                                                                    <span className="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-bold">{result.actionPlan!.responsible}</span>
+                                                                </div>
+                                                                <div>
+                                                                    <span className="block font-bold text-gray-400 uppercase text-[10px]">Prazo</span>
+                                                                    <span className="text-red-600 font-bold">{new Date(result.actionPlan!.deadline).toLocaleDateString()}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center text-yellow-700 text-xs font-bold">
+                                                            <ExclamationTriangleIcon className="h-4 w-4 mr-1"/>
+                                                            Plano de Ação Pendente
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            
+                                            <button 
+                                                onClick={() => onNavigateToReportItem(report, categoryId)}
+                                                className="self-start mt-2 md:mt-0 bg-white border border-gray-300 text-gray-600 hover:text-blue-600 hover:border-blue-400 text-xs font-bold py-2 px-4 rounded-lg shadow-sm transition-all whitespace-nowrap"
+                                            >
+                                                Ver no Relatório
+                                            </button>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        )}
     </div>
   );
 };

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Project, Report, UserProfile } from './types';
 import { getProjects, getReports, createReportDraft, changeOwnPassword } from './services/api';
@@ -15,7 +16,7 @@ import { LogoIcon, BuildingOfficeIcon, ChartPieIcon, ArrowLeftIcon, WrenchScrewd
 type View = 'SITES_LIST' | 'PROJECT_DASHBOARD' | 'REPORT_FORM' | 'REPORT_VIEW' | 'MANAGEMENT_DASHBOARD' | 'PENDING_ACTIONS' | 'ADMIN_PANEL';
 
 // VERSÃO DO SISTEMA (Para controle de atualização)
-const APP_VERSION = "v3.0 (Mobile Native Fix)";
+const APP_VERSION = "v3.1 (Fixed Historical Analysis)";
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -29,6 +30,9 @@ const App: React.FC = () => {
   const [initialCategoryId, setInitialCategoryId] = useState<string | undefined>(undefined);
   const [toastMessage, setToastMessage] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  
+  // Estado Global de Período (Compartilhado entre Dashboard e PendingActions)
+  const [dashboardPeriod, setDashboardPeriod] = useState<string>('latest');
   
   // States para Alteração de Senha
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -349,9 +353,29 @@ const App: React.FC = () => {
           />
         );
       case 'MANAGEMENT_DASHBOARD':
-        return <Dashboard projects={projects} reports={reports} onSelectProject={handleSelectProject} onNavigateToSites={navigateToSitesList} onNavigateToPendingActions={handleNavigateToPendingActions} />;
+        return (
+            <Dashboard 
+                projects={projects} 
+                reports={reports} 
+                onSelectProject={handleSelectProject} 
+                onNavigateToSites={navigateToSitesList} 
+                onNavigateToPendingActions={handleNavigateToPendingActions}
+                // Passa o estado e o setter para o Dashboard controlar
+                selectedPeriodProp={dashboardPeriod}
+                onPeriodChange={setDashboardPeriod}
+            />
+        );
       case 'PENDING_ACTIONS':
-        return <PendingActions projects={projects} reports={reports} onNavigateToReportItem={handleEditReportCategory} onBack={() => setView('MANAGEMENT_DASHBOARD')}/>;
+        return (
+            <PendingActions 
+                projects={projects} 
+                reports={reports} 
+                onNavigateToReportItem={handleEditReportCategory} 
+                onBack={() => setView('MANAGEMENT_DASHBOARD')}
+                // Passa o período selecionado para filtrar
+                selectedPeriod={dashboardPeriod}
+            />
+        );
       case 'ADMIN_PANEL':
         if (userProfile?.role !== 'admin') return <SitesList />;
         return <AdminPanel projects={projects} onProjectCreated={refreshData} />;

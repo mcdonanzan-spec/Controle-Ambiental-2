@@ -42,10 +42,8 @@ const TrendChart: React.FC<{ reports: Report[], projects: Project[] }> = ({ repo
         const dataByMonth: { [month: string]: { [projectId: string]: { sum: number, count: number } } } = {};
 
         reports.forEach(report => {
-            // USA DATA DE INSPEÇÃO (Se disponível) PARA O GRÁFICO HISTÓRICO
-            // Correção: Uso de string slice seguro para evitar problemas de timezone
             const refDate = report.inspectionDate || report.date;
-            const monthKey = refDate.substring(0, 7); // YYYY-MM seguro
+            const monthKey = refDate.substring(0, 7); 
             
             if (!dataByMonth[monthKey]) {
                 dataByMonth[monthKey] = {};
@@ -58,9 +56,8 @@ const TrendChart: React.FC<{ reports: Report[], projects: Project[] }> = ({ repo
         });
 
         const formattedData = Object.keys(dataByMonth).map(monthKey => {
-            // Construção segura da data para exibição (Ano, Mês - 1)
             const [year, month] = monthKey.split('-').map(Number);
-            const dateObj = new Date(year, month - 1, 2); // Dia 2 para evitar qualquer risco de rollback de timezone
+            const dateObj = new Date(year, month - 1, 2);
             
             const monthEntry: any = { 
                 month: monthKey,
@@ -70,10 +67,8 @@ const TrendChart: React.FC<{ reports: Report[], projects: Project[] }> = ({ repo
             projects.forEach(project => {
                 const data = dataByMonth[monthKey][project.id];
                 if (data) {
-                    // Calcula média
                     const avgScore = Math.round(data.sum / data.count);
                     monthEntry[project.name] = avgScore;
-                    // Armazena a contagem em uma chave separada para o Tooltip usar
                     monthEntry[`${project.name}_count`] = data.count;
                 }
             });
@@ -94,7 +89,6 @@ const TrendChart: React.FC<{ reports: Report[], projects: Project[] }> = ({ repo
 
     return (
         <div className="relative">
-            {/* Legenda de Zonas */}
             <div className="absolute right-0 -top-8 flex gap-3 text-[10px] text-gray-500 font-medium uppercase">
                 <span className="flex items-center"><span className="w-2 h-2 rounded-full bg-red-100 mr-1 border border-red-200"></span>Crítico</span>
                 <span className="flex items-center"><span className="w-2 h-2 rounded-full bg-yellow-100 mr-1 border border-yellow-200"></span>Atenção</span>
@@ -104,28 +98,13 @@ const TrendChart: React.FC<{ reports: Report[], projects: Project[] }> = ({ repo
             <ResponsiveContainer width="100%" height={320}>
                 <LineChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                    
-                    {/* Zonas de Background */}
                     <ReferenceArea y1={0} y2={69} fill="#FEF2F2" fillOpacity={0.5} />
                     <ReferenceArea y1={70} y2={89} fill="#FFFBEB" fillOpacity={0.5} />
                     <ReferenceArea y1={90} y2={100} fill="#ECFDF5" fillOpacity={0.5} />
-
-                    <XAxis 
-                        dataKey="displayMonth" 
-                        tick={{fontSize: 11, fill: '#9CA3AF', fontWeight: 600}} 
-                        axisLine={false}
-                        tickLine={false}
-                        dy={10}
-                    />
-                    <YAxis 
-                        domain={[0, 100]} 
-                        tick={{fontSize: 11, fill: '#9CA3AF'}} 
-                        axisLine={false}
-                        tickLine={false}
-                    />
+                    <XAxis dataKey="displayMonth" tick={{fontSize: 11, fill: '#9CA3AF', fontWeight: 600}} axisLine={false} tickLine={false} dy={10} />
+                    <YAxis domain={[0, 100]} tick={{fontSize: 11, fill: '#9CA3AF'}} axisLine={false} tickLine={false} />
                     <Tooltip content={<CustomTrendTooltip />} cursor={{ stroke: '#9CA3AF', strokeWidth: 1, strokeDasharray: '4 4' }}/>
                     <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }}/>
-                    
                     {projects.map((project, index) => (
                         <Line 
                             key={project.id} 
@@ -149,13 +128,11 @@ const TrendChart: React.FC<{ reports: Report[], projects: Project[] }> = ({ repo
 const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProject, onNavigateToSites, onNavigateToPendingActions }) => {
   const [selectedPeriod, setSelectedPeriod] = useState<string>('latest');
 
-  // Gera lista de meses disponíveis baseada nos relatórios
+  // 1. Identificar Meses Disponíveis
   const availableMonths = useMemo(() => {
       const months = new Set<string>();
       reports.forEach(r => {
-          // Usa inspectionDate se disponível
           const refDate = r.inspectionDate || r.date;
-          // Correção: Uso de substring para garantir YYYY-MM exato sem conversão de timezone
           if (refDate && refDate.length >= 7) {
             months.add(refDate.substring(0, 7)); 
           }
@@ -163,77 +140,84 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
       return Array.from(months).sort().reverse();
   }, [reports]);
 
-  // Filtra os relatórios baseados no período selecionado
-  const filteredReportsSnapshot = useMemo(() => {
+  // 2. Processamento dos Dados (Núcleo da Correção)
+  const dashboardData = useMemo(() => {
       return projects.map(project => {
-          let projectReports = reports.filter(r => r.projectId === project.id);
+          // Filtra relatórios da obra
+          const projectReports = reports.filter(r => r.projectId === project.id);
           
-          if (selectedPeriod !== 'latest') {
-             // Se não for 'latest', pegamos apenas relatórios DO MÊS selecionado (Baseado na Vistoria)
-             projectReports = projectReports.filter(r => {
+          let targetReports: Report[] = [];
+
+          if (selectedPeriod === 'latest') {
+             // Lógica: Apenas o MAIS RECENTE
+             const sorted = [...projectReports].sort((a, b) => {
+                 const dateA = a.inspectionDate || a.date;
+                 const dateB = b.inspectionDate || b.date;
+                 return dateB.localeCompare(dateA);
+             });
+             if (sorted.length > 0) targetReports = [sorted[0]];
+          } else {
+             // Lógica: TODOS do mês (Média)
+             targetReports = projectReports.filter(r => {
                  const refDate = r.inspectionDate || r.date;
-                 // Correção: Comparação de string direta
                  return refDate.substring(0, 7) === selectedPeriod;
              });
           }
 
-          if (projectReports.length === 0) return null;
+          if (targetReports.length === 0) return null;
+
+          // CÁLCULOS AGREGADOS
+          const reportsCount = targetReports.length;
           
-          // Retorna sempre o MAIS RECENTE dentro do escopo (Seja all-time ou dentro do mês específico)
-          // Ordena pela data da Vistoria via string (ISO YYYY-MM-DD funciona perfeitamente para sort)
-          return [...projectReports].sort((a, b) => {
-              const dateA = a.inspectionDate || a.date;
-              const dateB = b.inspectionDate || b.date;
-              return dateB.localeCompare(dateA);
-          })[0];
-      }).filter((r): r is Report => r !== null);
+          // Média de Nota
+          const sumScore = targetReports.reduce((acc, r) => acc + r.score, 0);
+          const avgScore = Math.round(sumScore / reportsCount);
+
+          // Total de NCs (Soma, pois é acumulativo no período)
+          const totalNCs = targetReports.reduce((acc, r) => {
+              const ncsInReport = r.results.filter(res => res.status === InspectionStatus.NC).length;
+              return acc + ncsInReport;
+          }, 0);
+
+          // Contagem de Itens Conform/Não Conforme (Para Gráfico de Pizza Global)
+          const itemsC = targetReports.reduce((acc, r) => acc + r.results.filter(i => i.status === InspectionStatus.C).length, 0);
+          const itemsNC = targetReports.reduce((acc, r) => acc + r.results.filter(i => i.status === InspectionStatus.NC).length, 0);
+
+          return {
+              name: project.name,
+              project: project,
+              score: avgScore, // Média ou Nota Única
+              pendingActions: totalNCs,
+              reportCount: reportsCount,
+              itemsC,
+              itemsNC
+          };
+
+      }).filter(item => item !== null);
   }, [projects, reports, selectedPeriod]);
 
-  // Calcula os dados de exibição baseados no snapshot filtrado
-  const data = projects.map(project => {
-    const report = filteredReportsSnapshot.find(r => r.projectId === project.id);
-    
-    // Se não tem relatório no período, não entra no gráfico para não poluir com zeros falsos, ou entra com N/A
-    if (!report && selectedPeriod !== 'latest') return null;
-
-    const score = report ? report.score : 0;
-    const pendingActions = report 
-        ? report.results.filter(res => res.status === InspectionStatus.NC).length 
-        : 0;
-
-    return {
-      name: project.name,
-      'Pontuação (%)': score,
-      pendingActions: pendingActions,
-      project, // Guardado para o onClick
-      hasData: !!report
-    };
-  }).filter(item => item !== null && (selectedPeriod === 'latest' || item.hasData)) as any[];
-
-  const totalPendingActions = data.reduce((sum, item) => sum + item.pendingActions, 0);
-
-  // Média Geral da Empresa (No período selecionado)
-  const averageCompanyScore = data.length > 0 
-    ? Math.round(data.reduce((sum, item) => sum + item['Pontuação (%)'], 0) / data.length)
+  // 3. Totais Globais para os Cards
+  const totalProjectsWithData = dashboardData.length;
+  
+  const totalPendingActions = dashboardData.reduce((sum, item) => sum + item.pendingActions, 0);
+  
+  // Média Geral da Empresa (Média das médias das obras)
+  const averageCompanyScore = totalProjectsWithData > 0 
+    ? Math.round(dashboardData.reduce((sum, item) => sum + item.score, 0) / totalProjectsWithData)
     : 0;
 
-  const overallStatus = filteredReportsSnapshot.flatMap(r => r.results)
-    .filter(res => res.status !== null && res.status !== InspectionStatus.NA);
-
-  const statusCounts = {
-    [InspectionStatus.C]: overallStatus.filter(r => r.status === InspectionStatus.C).length,
-    [InspectionStatus.NC]: overallStatus.filter(r => r.status === InspectionStatus.NC).length,
-  };
+  // 4. Dados para o Gráfico de Pizza (Agregado de todas as obras filtradas)
+  const totalItemsC = dashboardData.reduce((sum, item) => sum + item.itemsC, 0);
+  const totalItemsNC = dashboardData.reduce((sum, item) => sum + item.itemsNC, 0);
 
   const pieData = [
-    { name: 'Conforme', value: statusCounts[InspectionStatus.C] },
-    { name: 'Não Conforme', value: statusCounts[InspectionStatus.NC] },
+    { name: 'Conforme', value: totalItemsC },
+    { name: 'Não Conforme', value: totalItemsNC },
   ];
   
   const COLORS = ['#10B981', '#EF4444'];
 
   const handlePieClick = (entry: any) => {
-    // Se estiver no passado, talvez não faça sentido navegar para pendências "atuais", mas por simplicidade mantemos a navegação.
     if (entry.name === 'Não Conforme') {
         onNavigateToPendingActions();
     } else {
@@ -241,13 +225,19 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
     }
   };
 
-  // Formatador de data para o dropdown
   const formatMonth = (isoMonth: string) => {
       const [year, month] = isoMonth.split('-').map(Number);
-      // Data Local (Ano, Mês-1, Dia 2) para evitar bugs de timezone no dia 1
       const date = new Date(year, month - 1, 2);
       return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
   }
+
+  // Preparar dados para o BarChart (Mapeamento simples)
+  const barChartData = dashboardData.map(d => ({
+      name: d.name,
+      'Pontuação (%)': d.score,
+      project: d.project,
+      reportCount: d.reportCount
+  }));
 
   return (
     <div className="space-y-6 animate-fade-in pb-10 print:bg-white">
@@ -282,20 +272,15 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
           </div>
       </div>
       
-      {/* Header Apenas para Impressão */}
-      <div className="hidden print:block mb-8 border-b pb-4">
-          <h1 className="text-3xl font-bold text-gray-900">Relatório Gerencial de Desempenho</h1>
-          <p className="text-gray-500">Gerado em {new Date().toLocaleDateString()}</p>
-      </div>
-
       {/* BANNER DE MODO HISTÓRICO */}
       {selectedPeriod !== 'latest' && (
           <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r shadow-sm flex items-start animate-fade-in no-print">
               <ClockIcon className="h-6 w-6 text-yellow-600 mr-3 flex-shrink-0"/>
               <div>
-                  <h3 className="text-sm font-bold text-yellow-800 uppercase">Modo de Análise Histórica</h3>
+                  <h3 className="text-sm font-bold text-yellow-800 uppercase">Modo de Análise Consolidada</h3>
                   <p className="text-sm text-yellow-700">
-                      Você está visualizando os dados consolidados referentes a <strong>{formatMonth(selectedPeriod)}</strong> (baseado na data de vistoria).
+                      Visualizando média de desempenho de <strong>{formatMonth(selectedPeriod)}</strong>. 
+                      Os valores representam a média de todas as inspeções realizadas neste mês.
                   </p>
               </div>
               <button 
@@ -307,7 +292,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
           </div>
       )}
       
-      {/* KPI CARDS - Agora reagem ao período */}
+      {/* KPI CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 page-break-inside-avoid">
         <div onClick={() => onNavigateToSites()} className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between transition-all group cursor-pointer hover:shadow-md">
             <div className="flex items-center space-x-4">
@@ -316,7 +301,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                 </div>
                 <div>
                     <p className="text-sm font-medium text-gray-500">Obras com Dados</p>
-                    <p className="text-2xl font-bold text-gray-800">{data.length} <span className="text-xs text-gray-400 font-normal">/ {projects.length}</span></p>
+                    <p className="text-2xl font-bold text-gray-800">{totalProjectsWithData} <span className="text-xs text-gray-400 font-normal">/ {projects.length}</span></p>
                 </div>
             </div>
         </div>
@@ -327,7 +312,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                     <DocumentChartBarIcon className="h-8 w-8 text-green-600"/>
                 </div>
                 <div>
-                    <p className="text-sm font-medium text-gray-500">Nota Média ({selectedPeriod === 'latest' ? 'Atual' : 'No Mês'})</p>
+                    <p className="text-sm font-medium text-gray-500">Nota Média {selectedPeriod !== 'latest' && '(Mensal)'}</p>
                     <p className={`text-2xl font-bold ${averageCompanyScore >= 90 ? 'text-green-600' : averageCompanyScore >= 70 ? 'text-blue-600' : 'text-yellow-600'}`}>
                         {averageCompanyScore}%
                     </p>
@@ -345,9 +330,6 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                     <p className="text-2xl font-bold text-gray-800">{totalPendingActions}</p>
                 </div>
             </div>
-             {totalPendingActions > 0 && (
-                <div className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded font-semibold group-hover:bg-red-100 no-print">Ver Detalhes</div>
-            )}
         </div>
       </div>
 
@@ -355,20 +337,31 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
         {/* BAR CHART */}
         <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-md border border-gray-100">
           <div className="mb-6">
-            <h2 className="text-lg font-bold text-gray-700">Ranking de Desempenho {selectedPeriod !== 'latest' && <span className="text-yellow-600">(Histórico)</span>}</h2>
-            <p className="text-xs text-gray-500 mt-1 no-print">Clique na barra para ver os detalhes da obra</p>
+            <h2 className="text-lg font-bold text-gray-700">Ranking de Desempenho {selectedPeriod !== 'latest' && <span className="text-yellow-600">(Média do Mês)</span>}</h2>
+            <p className="text-xs text-gray-500 mt-1 no-print">Comparativo entre obras baseado no período selecionado.</p>
           </div>
           
-          {data.length > 0 ? (
+          {barChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={data} margin={{ top: 20, right: 20, left: -10, bottom: 5 }} layout="horizontal">
+                <BarChart data={barChartData} margin={{ top: 20, right: 20, left: -10, bottom: 5 }} layout="horizontal">
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb"/>
                     <XAxis dataKey="name" tick={{fontSize: 11, fill: '#6B7280', fontWeight: 600}} interval={0} axisLine={false} tickLine={false}/>
                     <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#6B7280'}}/>
                     <Tooltip 
                         cursor={{fill: '#F3F4F6'}} 
-                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                        itemStyle={{ color: '#374151', fontWeight: 600 }}
+                        content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                                const data = payload[0].payload;
+                                return (
+                                    <div className="bg-white p-3 rounded shadow-lg border border-gray-100 text-xs">
+                                        <p className="font-bold mb-1">{data.name}</p>
+                                        <p>Nota: <strong>{data['Pontuação (%)']}%</strong></p>
+                                        <p className="text-gray-500">Baseado em {data.reportCount} relatório(s)</p>
+                                    </div>
+                                );
+                            }
+                            return null;
+                        }}
                     />
                     <Bar 
                         dataKey="Pontuação (%)" 
@@ -376,7 +369,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                         onClick={(d: any) => onSelectProject(d.project)} 
                         className="cursor-pointer hover:opacity-80 transition-all duration-300"
                     >
-                        {data.map((entry, index) => (
+                        {barChartData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry['Pontuação (%)'] >= 90 ? '#10B981' : entry['Pontuação (%)'] >= 70 ? '#3B82F6' : '#F59E0B'} />
                         ))}
                         <LabelList 
@@ -400,11 +393,11 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
           <div>
             <h2 className="text-lg font-bold text-gray-700 mb-2">Aderência aos Processos</h2>
             <div className="flex justify-between items-start">
-                 <p className="text-xs text-gray-500 mb-6">Proporção de itens conformes nas obras analisadas.</p>
+                 <p className="text-xs text-gray-500 mb-6">Proporção total de itens verificados no período.</p>
             </div>
           </div>
           
-          {overallStatus.length > 0 ? (
+          {(totalItemsC + totalItemsNC) > 0 ? (
             <div className="relative flex-grow flex items-center justify-center">
                 <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
@@ -428,8 +421,8 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                 </ResponsiveContainer>
                 {/* Score Central */}
                 <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none mt-[-15px]">
-                    <p className={`text-3xl font-bold ${statusCounts[InspectionStatus.C] > statusCounts[InspectionStatus.NC] ? 'text-green-600' : 'text-red-600'}`}>
-                        {Math.round((statusCounts[InspectionStatus.C] / (statusCounts[InspectionStatus.C] + statusCounts[InspectionStatus.NC])) * 100 || 0)}%
+                    <p className={`text-3xl font-bold ${totalItemsC > totalItemsNC ? 'text-green-600' : 'text-red-600'}`}>
+                        {Math.round((totalItemsC / (totalItemsC + totalItemsNC)) * 100 || 0)}%
                     </p>
                     <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold">Índice Geral</p>
                 </div>
@@ -446,10 +439,6 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
             <div>
                 <h2 className="text-lg font-bold text-gray-700">Evolução Histórica (Tendência)</h2>
                 <p className="text-xs text-gray-500">Média ponderada mensal das inspeções. Acompanhe se as obras estão melhorando ou piorando ao longo do tempo.</p>
-            </div>
-            <div className="flex items-center space-x-2 text-xs bg-gray-50 p-2 rounded border">
-                <span className="font-semibold text-gray-600">Contexto:</span>
-                <span className="text-gray-500">Últimos 12 Meses (Fixo)</span>
             </div>
           </div>
           <TrendChart reports={reports} projects={projects} />

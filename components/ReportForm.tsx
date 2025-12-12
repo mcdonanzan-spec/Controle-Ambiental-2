@@ -111,7 +111,10 @@ const GovBrBadge: React.FC<{ name: string, date: string }> = ({ name, date }) =>
 const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userProfile, onSave, onCancel, initialCategoryId }) => {
   // Inicializa o estado com dados existentes ou novo draft
   const [reportData, setReportData] = useState<Omit<Report, 'id' | 'score' | 'evaluation' | 'categoryScores'> & {id?: string}>(
-    existingReport ? {...existingReport} : {
+    existingReport ? {
+        ...existingReport,
+        signatures: existingReport.signatures || { inspector: '', manager: '' } // Garantia para legados
+    } : {
         projectId: project.id,
         date: new Date().toISOString(),
         inspectionDate: new Date().toISOString().split('T')[0], // Hoje YYYY-MM-DD
@@ -185,7 +188,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
       setReportData(prev => ({
           ...prev,
           signatures: {
-              ...prev.signatures,
+              ...(prev.signatures || { inspector: '', manager: '' }), // Safety fallback
               [role]: signatureText
           }
       }));
@@ -207,7 +210,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
             return;
         }
 
-        if (!reportData.signatures.inspector || !reportData.signatures.manager) {
+        if (!reportData.signatures?.inspector || !reportData.signatures?.manager) {
             alert("Ambas as assinaturas Gov.br são necessárias para concluir o relatório.");
             return;
         }
@@ -446,7 +449,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                                     <h4 className="font-bold text-gray-800 mb-1">Responsável Ambiental (Assistente)</h4>
                                     <p className="text-xs text-gray-400 mb-4">Inspeção de Campo</p>
                                     
-                                    {reportData.signatures.inspector ? (
+                                    {reportData.signatures?.inspector ? (
                                         <GovBrBadge name={reportData.signatures.inspector} date={new Date().toISOString()} />
                                     ) : (
                                         <div className="mt-4">
@@ -469,7 +472,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ project, existingReport, userPr
                                     <h4 className="font-bold text-gray-800 mb-1">Responsável Engenharia (Engenheiro)</h4>
                                     <p className="text-xs text-gray-400 mb-4">Validação Técnica</p>
                                     
-                                    {reportData.signatures.manager ? (
+                                    {reportData.signatures?.manager ? (
                                         <GovBrBadge name={reportData.signatures.manager} date={new Date().toISOString()} />
                                     ) : (
                                         <div className="mt-4">

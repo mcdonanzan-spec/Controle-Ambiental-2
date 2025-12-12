@@ -309,7 +309,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
       
       {/* KPI CARDS - Agora reagem ao período */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 page-break-inside-avoid">
-        <div onClick={selectedPeriod === 'latest' ? onNavigateToSites : undefined} className={`bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between transition-all group ${selectedPeriod === 'latest' ? 'cursor-pointer hover:shadow-md' : ''}`}>
+        <div onClick={() => onNavigateToSites()} className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between transition-all group cursor-pointer hover:shadow-md">
             <div className="flex items-center space-x-4">
                 <div className="p-3 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors print:bg-blue-50">
                     <BuildingOfficeIcon className="h-8 w-8 text-blue-600"/>
@@ -356,7 +356,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
         <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-md border border-gray-100">
           <div className="mb-6">
             <h2 className="text-lg font-bold text-gray-700">Ranking de Desempenho {selectedPeriod !== 'latest' && <span className="text-yellow-600">(Histórico)</span>}</h2>
-            {selectedPeriod === 'latest' && <p className="text-xs text-gray-500 mt-1 no-print">Clique na barra para ver os detalhes da obra</p>}
+            <p className="text-xs text-gray-500 mt-1 no-print">Clique na barra para ver os detalhes da obra</p>
           </div>
           
           {data.length > 0 ? (
@@ -373,8 +373,8 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                     <Bar 
                         dataKey="Pontuação (%)" 
                         radius={[4, 4, 0, 0]} 
-                        onClick={(d: any) => selectedPeriod === 'latest' && onSelectProject(d.project)} 
-                        className={`transition-all duration-300 ${selectedPeriod === 'latest' ? 'cursor-pointer hover:opacity-80' : 'cursor-default opacity-90'}`}
+                        onClick={(d: any) => onSelectProject(d.project)} 
+                        className="cursor-pointer hover:opacity-80 transition-all duration-300"
                     >
                         {data.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry['Pontuação (%)'] >= 90 ? '#10B981' : entry['Pontuação (%)'] >= 70 ? '#3B82F6' : '#F59E0B'} />
@@ -418,7 +418,7 @@ const Dashboard: React.FC<DashboardProps> = ({ projects, reports, onSelectProjec
                         dataKey="value" 
                         stroke="none"
                         onClick={handlePieClick}
-                        className={`${selectedPeriod === 'latest' ? 'cursor-pointer hover:opacity-80' : ''} transition-opacity`}
+                        className="cursor-pointer hover:opacity-80 transition-opacity"
                     >
                         {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                     </Pie>
